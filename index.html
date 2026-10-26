@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>For the Date · is today warm or cold for the date where you are?</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23b23a2e'/%3E%3Crect x='13' y='5' width='6' height='16' rx='3' fill='%23fff'/%3E%3Ccircle cx='16' cy='22' r='5.5' fill='%23fff'/%3E%3Ccircle cx='16' cy='22' r='3' fill='%23b23a2e'/%3E%3Crect x='14.8' y='11' width='2.4' height='10' fill='%23b23a2e'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#b23a2e">
+<meta name="description" content="Is today warm or cold for the date? The forecast for any town of 15,000+ people, against the same days of the calendar in each of the 30 years 1991-2020.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://matmat202.github.io/for-the-date/">
+<meta property="og:title" content="For the Date">
+<meta property="og:description" content="Today's forecast against 30 years of the same days. Warm for the date, or not?">
+<meta name="twitter:card" content="summary">
+<style>
+:root{color-scheme:light;--ground:#f8f7f5;--card:#fff;--ink:#1d1b19;--ink-2:#56514c;--line:#e4e0da;
+  --accent:#a8352a;--dot:#8c857d;--mean:#1d1b19;--today:#a8352a;
+  --b-rw:#7f1d16;--b-mw:#c0392b;--b-w:#e08a6c;--b-u:#b7b0a8;--b-c:#7aa6d6;--b-mc:#2f6fb5;--b-rc:#163f73;
+  --f-ui:system-ui,-apple-system,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--ground:#141312;--card:#1d1c1a;--ink:#f0ece7;--ink-2:#bdb5ac;
+  --line:#37332f;--accent:#ff8f7f;--dot:#8a837b;--mean:#f0ece7;--today:#ff8f7f;
+  --b-rw:#ff6b5c;--b-mw:#f0715f;--b-w:#e3a089;--b-u:#7d766f;--b-c:#86b2e3;--b-mc:#5b9cf0;--b-rc:#9cc6ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-ui);font-size:15px}
+main{max-width:820px;margin:0 auto;padding:16px}
+h1{font-size:24px;margin:4px 0 2px}h1 span{color:var(--accent)}
+.sub{color:var(--ink-2);font-size:13px;margin:0 0 12px;line-height:1.45}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin:0 0 8px}
+.box{position:relative}
+input,button{font:inherit;font-size:15px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+input[type=search]{width:100%}
+button{cursor:pointer}
+.v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.opts{position:absolute;z-index:5;left:0;right:0;top:100%;margin:4px 0 0;padding:4px;list-style:none;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.14);max-height:300px;overflow:auto}
+.opts li{padding:8px 10px;border-radius:7px;cursor:pointer}
+.opts li[aria-selected="true"]{background:var(--ground)}
+.opts li.none{color:var(--ink-2);cursor:default}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:9px 12px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--card);font-weight:600}
+#unit{font-weight:600;color:var(--accent)}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:4px 0 0;padding:0;list-style:none}
+.week button{width:100%;padding:7px 4px 8px;text-align:center;border-bottom-width:4px;line-height:1.25}
+.week button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:-2px}
+.seg button:focus-visible{outline-offset:-3px}
+.week button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.week b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.week small{display:block;font-size:12px;color:var(--ink-2)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0 0}
+.card h2{font-size:16px;margin:0 0 4px}
+.big{font-size:21px;margin:2px 0 4px;line-height:1.3}
+.big b{font-variant-numeric:tabular-nums}
+.big .w{border-bottom:4px solid var(--b-u)}
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 0;padding:0;list-style:none}
+.facts li{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.facts b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
+.facts span{font-size:12px;color:var(--ink-2)}
+.more{font-size:13px;color:var(--ink-2);margin:10px 0 0;line-height:1.5}
+.msg{color:var(--ink-2)}
+[data-band=record-warm]{border-bottom-color:var(--b-rw)!important}[data-band=much-warmer]{border-bottom-color:var(--b-mw)!important}
+[data-band=warmer]{border-bottom-color:var(--b-w)!important}[data-band=usual]{border-bottom-color:var(--b-u)!important}
+[data-band=cooler]{border-bottom-color:var(--b-c)!important}[data-band=much-cooler]{border-bottom-color:var(--b-mc)!important}
+[data-band=record-cold]{border-bottom-color:var(--b-rc)!important}
+#chart svg{display:block;width:100%;height:auto}
+#chart .d{fill:var(--dot);opacity:.45}
+#chart .mean{fill:none;stroke:var(--mean);stroke-width:2;vector-effect:non-scaling-stroke}
+#chart .now{stroke:var(--today);stroke-width:2.5;vector-effect:non-scaling-stroke}
+#chart .grid{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+#chart text{font-size:11px;fill:var(--ink-2)}
+#chart text.lab{fill:var(--today);font-weight:600}
+.key{display:flex;gap:14px;font-size:12px;color:var(--ink-2);margin:6px 2px 0;flex-wrap:wrap}
+.key i{display:inline-block;width:16px;height:3px;vertical-align:3px;margin-right:5px;background:var(--mean)}
+.key i.d{width:7px;height:7px;border-radius:50%;background:var(--dot);vertical-align:0}
+.key i.now{background:var(--today)}
+footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
+[hidden]{display:none!important}
+@media (max-width:560px){.facts{grid-template-columns:repeat(2,1fr)}.week{grid-template-columns:repeat(4,1fr)}
+  .row{grid-template-columns:1fr auto}.row .seg{grid-column:1}}
+</style>
+</head>
+<body>
+<main>
+<h1><span>For the Date</span></h1>
+<p class="sub">Is today warm or cold <em>for the date</em>? This week's forecast for any town, against the same
+fortnight of the calendar in each of the 30 years from 1991 to 2020.</p>
+
+<div class="row">
+  <div class="box"><label class="v" for="at">Town</label>
+    <input id="at" type="search" autocomplete="off" spellcheck="false" placeholder="Type a town or city" role="combobox"
+      aria-autocomplete="list" aria-expanded="false" aria-controls="atList">
+    <ul id="atList" class="opts" role="listbox" aria-label="Places" hidden></ul></div>
+  <div class="seg" role="group" aria-label="Day or night">
+    <button type="button" id="hi" aria-pressed="true">Highs</button><button type="button" id="lo" aria-pressed="false">Lows</button>
+  </div>
+  <button type="button" id="unit" aria-label="Switch units">°C</button>
+</div>
+<ul class="week" id="week" aria-label="This week"></ul>
+
+<section class="card" id="main" aria-live="polite">
+  <h2 id="head">…</h2>
+  <p class="big" id="big"><span class="msg">Loading…</span></p>
+  <ul class="facts" id="facts" hidden>
+    <li><b id="fMed">–</b><span>typical (median)</span></li>
+    <li><b id="fRange">–</b><span>8 days in 10 fall in</span></li>
+    <li><b id="fWarm">–</b><span id="fWarmY">warmest</span></li>
+    <li><b id="fCold">–</b><span id="fColdY">coldest</span></li>
+  </ul>
+  <p class="more" id="more"></p>
+</section>
+
+<section class="card" id="chartCard" hidden>
+  <h2 id="cTitle">The same days, 1991–2020</h2>
+  <div id="chart"></div>
+  <div class="key"><span><i class="d"></i>one past day</span><span><i></i>each year's average</span><span><i class="now"></i>this day's forecast</span></div>
+  <p class="more" id="trend"></p>
+</section>
+
+<footer>
+  Each past year contributes the 15 days centred on the date, so every comparison is against 450 days. The past comes from
+  <a href="https://open-meteo.com/">Open-Meteo</a>'s historical weather (ERA5 reanalysis: a model's reconstruction of
+  past weather on a grid of about 10–25 km, not one thermometer in town), and the week from its forecast. The two are
+  different models, so the page measures how far apart they were here over the last 60 days and takes that gap off the
+  forecast first. Weather data by Open-Meteo.com (CC BY 4.0). Towns: <a href="https://www.geonames.org/">GeoNames</a>
+  (CC BY 4.0). Your town choice stays in your browser and the link; only its coordinates go to Open-Meteo.
+  <br>Made by Claude for <a href="https://matmat202.github.io/">matmat202</a> ·
+  <a href="https://github.com/matmat202/for-the-date">source</a>
+</footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
