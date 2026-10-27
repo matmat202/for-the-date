@@ -74,6 +74,12 @@ if (existsSync(FX + 'facts.json')) {
   const sum = L.summary(s);
   eq('summary', [sum.n, sum.min, sum.max, sum.median, sum.mean], [10, 1, 10, 5.5, 5.5]);
   near('p90 interpolates', sum.p90, 9.1);
+  eq('verdict: equal to the coldest is not a record', L.verdict(5, 1, sum).band, 'much-cooler');
+  eq('verdict: just over each line', [30.5, 10.5].map((p) => L.verdict(p, 5, sum).band), ['usual', 'cooler']);
+  eq('verdict: no percentile or no record is none', [L.verdict(null, 5, sum).band, L.verdict(50, 5, null).band], ['none', 'none']);
+  // Days tie at 0.1°: the warmest and coldest named are the first such day in the record.
+  const tied = L.summary([{ year: 2000, v: 5 }, { year: 2001, v: 9 }, { year: 2002, v: 9 }, { year: 2003, v: 1 }, { year: 2004, v: 1 }]);
+  eq('ties: the first warmest and coldest', [tied.warm.year, tied.cold.year], [2001, 2003]);
   eq('verdict: record warm', L.verdict(100, 11, sum).band, 'record-warm');
   eq('verdict: equal to the warmest is not a record', L.verdict(95, 10, sum).band, 'much-warmer');
   eq('verdict: record cold', L.verdict(0, 0, sum).band, 'record-cold');
@@ -94,6 +100,7 @@ if (existsSync(FX + 'facts.json')) {
   eq('offset: forecast 1° warm', L.offset(fc, ar, 't'), { by: 1, n: 12 });
   const holes = { time: days, t: days.map((_, i) => (i < 3 ? null : 9 + i)) };
   eq('offset: too few shared days is flagged, not used', L.offset(fc, holes, 't'), { by: 0, n: 9, short: true });
+  eq('offset: NaN on either side is not a shared day', [L.offset({ ...fc, t: fc.t.map((v, i) => (i ? v : NaN)) }, ar, 't').n, L.offset(fc, { ...ar, t: ar.t.map((v, i) => (i ? v : NaN)) }, 't').n], [11, 11]);
   const shifted = { time: days.slice(2), t: days.slice(2).map((_, i) => 12 + i) }; // same values, matched by date
   eq('offset: matched by date, not position', L.offset(fc, { time: [...shifted.time, '2026-10-13'], t: [...shifted.t, 0] }, 't'), { by: 0, n: 10 });
 }
@@ -104,6 +111,8 @@ if (existsSync(FX + 'facts.json')) {
   for (let y = 2000; y <= 2009; y++) for (let k = 0; k < 3; k++) s.push({ year: y, v: (y - 2000) * 0.2 + k });
   near('trend: 0.2°/yr is 2°/decade', L.trend(s).perDecade, 2);
   eq('trend: too few years', L.trend(s.filter((x) => x.year < 2002)).perDecade, null);
+  near('trend: three years are enough', L.trend(s.filter((x) => x.year < 2003)).perDecade, 2);
+  eq('trend: each year\'s mean, in year order whatever the input order', L.trend([...s].reverse()).pts.slice(0, 2).map((p) => [p.year, +p.mean.toFixed(6)]), [[2000, 1], [2001, 1.2]]);
 }
 
 // --- units, words, URL --------------------------------------------------------------------
@@ -118,6 +127,9 @@ eq('unit: rubbish is C', L.unitFor('!!'), 'C');
 eq('dateWords', L.dateWords([2026, 10, 26]), '26 October');
 eq('weekday', L.weekday([2026, 10, 26]), 'Mon');
 eq('climRange', L.climRange(), { start: '1990-12-25', end: '2021-01-07' });
+eq('sameDates skips a NaN day', L.sameDates({ time: ['2000-10-26', '2000-10-27'], t: [NaN, 4] }, 't', [10, 26], { half: 1, from: 2000, to: 2000 }).map((x) => x.v), [4]);
+eq('another day, same month or same day of the month, is in the URL', [L.encodeState({ at: 'X', date: [2026, 10, 27], today: [2026, 10, 26], unit: 'C', defUnit: 'C' }), L.encodeState({ at: 'X', date: [2026, 11, 26], today: [2026, 10, 26], unit: 'C', defUnit: 'C' })], ['?at=X&d=2026-10-27', '?at=X&d=2026-11-26']);
+eq('names are cut at 120', L.decodeState('?at=' + 'y'.repeat(130)).at.length, 120);
 {
   const s = L.encodeState({ at: 'Reykjavík, Capital Region, Iceland', date: [2026, 10, 28], today: [2026, 10, 26], low: true, unit: 'F', defUnit: 'C' });
   eq('encode', s, '?at=Reykjav%C3%ADk%2C+Capital+Region%2C+Iceland&d=2026-10-28&lo=1&u=F');
@@ -136,6 +148,12 @@ eq('climRange', L.climRange(), { start: '1990-12-25', end: '2021-01-07' });
   const pa = L.placeByLabel(doc.places, 'palo alto, california, united states');
   eq('placeByLabel folds case', pa && L.toPlace(pa, doc.zones).tz, 'America/Los_Angeles');
   eq('biggestIn Europe/London is London', L.placeLabel(L.biggestIn(doc.places, doc.zones, 'Europe/London')), 'London, England, United Kingdom');
+  eq('biggestIn the first zone', L.biggestIn(doc.places, doc.zones, doc.zones[0]) && L.biggestIn(doc.places, doc.zones, doc.zones[0])[L.P.TZ], 0);
+  eq('toPlace reads lat and lon', [pa[L.P.LAT], pa[L.P.LON]].map(Math.round), [37, -122]);
+  eq('eight towns at most', L.matchPlaces(doc.places, 'san').length, 8);
+  eq('labels skip an empty or repeated region', [L.placeLabel(['Monaco', '', 'Monaco']), L.placeLabel(['Singapore', 'Singapore', 'Singapore'])], ['Monaco, Monaco', 'Singapore, Singapore']);
+  // An exact name outranks a bigger town it merely prefixes, as in Daylight.
+  eq('an exact name comes first', L.matchPlaces([['Springfield Gardens', '', 'US', 0, 0, 9, 0], ['Springfield', '', 'US', 0, 0, 1, 0]], 'springfield').map((p) => p[0]), ['Springfield', 'Springfield Gardens']);
 }
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
