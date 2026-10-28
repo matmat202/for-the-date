@@ -9,6 +9,7 @@ const PAST = 60, AHEAD = 7;
 const KEYS = { hi: 'temperature_2m_max', lo: 'temperature_2m_min' };
 const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max';
 let PLACES = [], ZONES = [], DEF_UNIT = 'C';
+let MORE = null; // while the page runs on seed.json: what a search with no match says
 const state = { at: null, date: null, low: false, unit: 'C', data: null };
 const cache = new Map();
 
@@ -212,7 +213,7 @@ function combo(boxId, listId, onPick) {
       li.textContent = L.placeLabel(p);
       ul.append(li);
     });
-    if (!opts.length) { const li = document.createElement('li'); li.className = 'none'; li.textContent = 'No town by that name. Try a bigger place nearby.'; ul.append(li); }
+    if (!opts.length) { const li = document.createElement('li'); li.className = 'none'; li.textContent = MORE || 'No town by that name. Try a bigger place nearby.'; ul.append(li); }
     ul.hidden = false;
     box.setAttribute('aria-expanded', 'true');
     if (active >= 0) { box.setAttribute('aria-activedescendant', `${listId}${active}`); $(`${listId}${active}`).scrollIntoView({ block: 'nearest' }); }
@@ -243,22 +244,43 @@ function wire() {
   $('unit').addEventListener('click', () => { state.unit = state.unit === 'C' ? 'F' : 'C'; draw(); });
 }
 
+// The first screen draws from data/seed.json (the biggest town in each zone plus the
+// fallbacks: ~15 KB gzipped, preloaded by index.html) instead of waiting on all of places.json (~770 KB, measured
+// 6.8 s before anything drew on Lighthouse's phone profile). The full list follows for
+// search. A link naming a town the seed lacks waits for the full list, so a shared link
+// never opens on the wrong town.
+const getData = (url) => fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+function loadPlaces(wanted) {
+  // The full list starts only once the seed is in: on a slow link the two would split it.
+  const seed = getData('data/seed.json');
+  const full = seed.then(() => getData('data/places.json'), () => getData('data/places.json'));
+  full.catch(() => {});
+  return seed.then(
+    (seed) => (wanted.some((l) => l && !L.placeByLabel(seed.places, l)) ? full.then((d) => [d, null]) : [seed, full]),
+    () => full.then((d) => [d, null]));
+}
+// Swap the full list in when it lands: search then covers every town, and an open list redraws.
+function swapIn(rest, redraw) {
+  if (!rest) return;
+  MORE = 'Still loading the full list of towns…';
+  const reopen = () => { const a = document.activeElement; if (a && a.getAttribute('role') === 'combobox' && a.value.trim()) a.dispatchEvent(new Event('input')); };
+  rest.then((d) => { PLACES = d.places; MORE = null; reopen(); if (redraw) redraw(); },
+    () => { MORE = 'Could not load the full list of towns, so only big cities can be found. Reload to try again.'; reopen(); });
+}
+
 async function main() {
   DEF_UNIT = L.unitFor(navigator.language);
-  let doc;
-  try {
-    const r = await fetch('data/places.json');
-    if (!r.ok) throw new Error(r.status);
-    doc = await r.json();
-  } catch (e) { $('big').textContent = `Could not load the list of towns (${e.message}). Reload to try again.`; return; }
-  PLACES = doc.places; ZONES = doc.zones;
   const want = L.decodeState(location.search);
+  let doc, rest;
+  try { [doc, rest] = await loadPlaces([want.at]); } catch (e) { $('big').textContent = `Could not load the list of towns (${e.message}). Reload to try again.`; return; }
+  PLACES = doc.places; ZONES = doc.zones;
   const find = (label) => { const p = label && L.placeByLabel(PLACES, label); return p ? L.toPlace(p, ZONES) : null; };
   let mine = null;
   try { mine = L.biggestIn(PLACES, ZONES, Intl.DateTimeFormat().resolvedOptions().timeZone); } catch { /* no zone: London */ }
   state.date = want.date; state.low = want.low; state.unit = want.unit || DEF_UNIT;
   wire();
   draw();
+  swapIn(rest);
   await choose(find(want.at) || (mine && L.toPlace(mine, ZONES)) || find('London, England, United Kingdom'));
 }
 main();
