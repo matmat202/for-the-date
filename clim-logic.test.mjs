@@ -49,6 +49,13 @@ if (existsSync(FX + 'facts.json')) {
   eq('rain: 10 mm on 15 Jan (25% wet) is usual', L.rain(L.sameDates(clim, 'precipitation_sum', [1, 15]), 10).band, 'wet');
   const jul = L.rain(L.sameDates(clim, 'precipitation_sum', [7, 15]), 3);
   eq('rain: a wet 15 July with no wet day in 30 years has no rank, and is unusual', [jul.band, jul.rank, jul.wetSum], ['wet-rare', null, null]);
+  // The last 30 days (ftd-month), against Python on the same recent archive.
+  for (const k of ['max', 'min']) {
+    const m = L.month(clim, rc, `temperature_2m_${k}`), f = facts[`month_${k}`];
+    eq(`month ${k}: first and last day`, [L.iso(m.days[0].date), L.iso(m.days.at(-1).date)], [f.first, f.last]);
+    eq(`month ${k}: ${f.n} days, ${f.above} above the median, ${f.warm} warm, ${f.cool} cool`, [m.n, m.above, m.warm, m.cool], [f.n, f.above, f.warm, f.cool]);
+    ok(`month ${k}: every percentile`, m.days.every((d, i) => Math.abs(d.pct - f.pcts[i]) < 1e-9), JSON.stringify(m.days.map((d) => d.pct).slice(0, 4)));
+  }
 } else console.log('(fixtures not present: the Python cross-check is skipped)');
 
 // --- the window, by hand -----------------------------------------------------------------
@@ -186,6 +193,25 @@ eq('names are cut at 120', L.decodeState('?at=' + 'y'.repeat(130)).at.length, 12
   eq('labels skip an empty or repeated region', [L.placeLabel(['Monaco', '', 'Monaco']), L.placeLabel(['Singapore', 'Singapore', 'Singapore'])], ['Monaco, Monaco', 'Singapore, Singapore']);
   // An exact name outranks a bigger town it merely prefixes, as in Daylight.
   eq('an exact name comes first', L.matchPlaces([['Springfield Gardens', '', 'US', 0, 0, 9, 0], ['Springfield', '', 'US', 0, 0, 1, 0]], 'springfield').map((p) => p[0]), ['Springfield', 'Springfield Gardens']);
+}
+
+// --- the last 30 days, by hand ----------------------------------------------------------
+{
+  // 30 years where every day is 10; the recent record ends in two nulls (the archive's lag)
+  // and has one inside. 10 ties at the 50th percentile, so it is neither above nor warm.
+  const time = [], v = [];
+  for (let k = [1990, 12, 20]; k[0] < 2021 || (k[0] === 2021 && k[1] === 1 && k[2] <= 10); k = L.addDays(k, 1)) { time.push(L.iso(k)); v.push(10); }
+  const clim = { time, v };
+  const rt = [], rv = [];
+  for (let i = 0, k = [2026, 9, 1]; i < 40; i++, k = L.addDays(k, 1)) { rt.push(L.iso(k)); rv.push(i < 38 ? 5 + i % 12 : null); }
+  rv[30] = null;
+  const m = L.month(clim, { time: rt, v: rv }, 'v');
+  eq('month: ends at the newest day with a value', L.iso(m.days.at(-1).date), rt[37]);
+  eq('month: 30 calendar days, a null inside kept as a blank', [m.days.length, m.n, m.days.findIndex((d) => d.band === 'none')], [30, 29, 22]);
+  eq('month: 10 ties the median; over it is above and record-warm', [m.days.find((d) => d.x === 10).pct, m.days.find((d) => d.x === 11).band, m.days.find((d) => d.x === 9).band], [50, 'record-warm', 'record-cold']);
+  eq('month: above, warm and cool counted', [m.above, m.warm, m.cool], [m.days.filter((d) => d.x > 10).length, m.days.filter((d) => d.x > 10).length, m.days.filter((d) => d.x != null && d.x < 10).length]);
+  eq('month: a shorter record is all of it', L.month(clim, { time: rt.slice(0, 5), v: rv.slice(0, 5) }, 'v').n, 5);
+  eq('month: an empty record', L.month(clim, { time: [], v: [] }, 'v').n, 0);
 }
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);

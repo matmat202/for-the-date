@@ -65,6 +65,13 @@ button{cursor:pointer}
 [data-band=warmer]{border-bottom-color:var(--b-w)!important}[data-band=usual]{border-bottom-color:var(--b-u)!important}
 [data-band=cooler]{border-bottom-color:var(--b-c)!important}[data-band=much-cooler]{border-bottom-color:var(--b-mc)!important}
 [data-band=record-cold]{border-bottom-color:var(--b-rc)!important}
+.days{display:grid;grid-template-columns:repeat(30,1fr);gap:2px;margin:8px 0 0}
+.days i{display:block;height:30px;border-radius:3px;background:var(--line)}
+.days i[data-band=record-warm]{background:var(--b-rw)}.days i[data-band=much-warmer]{background:var(--b-mw)}
+.days i[data-band=warmer]{background:var(--b-w)}.days i[data-band=usual]{background:var(--b-u)}
+.days i[data-band=cooler]{background:var(--b-c)}.days i[data-band=much-cooler]{background:var(--b-mc)}
+.days i[data-band=record-cold]{background:var(--b-rc)}
+.ends{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-2);margin:4px 1px 0}
 #chart svg{display:block;width:100%;height:auto}
 #chart .d{fill:var(--dot);opacity:.45}
 #chart .mean{fill:none;stroke:var(--mean);stroke-width:2;vector-effect:non-scaling-stroke}
@@ -118,6 +125,14 @@ fortnight of the calendar in each of the 30 years from 1991 to 2020.</p>
   <div id="chart"></div>
   <div class="key"><span><i class="d"></i>one past day</span><span><i></i>each year's average</span><span><i class="now"></i>this day's forecast</span></div>
   <p class="more" id="trend"></p>
+</section>
+
+<section class="card" id="monthCard" hidden>
+  <h2 id="mTitle">The last 30 days</h2>
+  <p class="rain" id="mSum"></p>
+  <div class="days" id="days" role="img"></div>
+  <div class="ends"><span id="mFrom"></span><span id="mTo"></span></div>
+  <p class="more" id="mMore"></p>
 </section>
 
 <footer>

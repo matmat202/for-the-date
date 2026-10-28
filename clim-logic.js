@@ -82,6 +82,32 @@ export function verdict(pct, x, sum) {
   return { band: 'much-cooler', words: 'much cooler than usual' };
 }
 
+// ---- the last 30 days -------------------------------------------------------------------
+// Each of the last MONTH days on record against its own date's 450 days. The record is the
+// archive, the same model as the 30 years, so there is no gap to subtract. It runs a few
+// days behind, so the strip ends at the newest day it has; a null inside is kept as a blank
+// day rather than skipped, so the cells stay one per calendar day.
+export const MONTH = 30;
+export function month(clim, recent, key, n = MONTH) {
+  let end = recent.time.length - 1;
+  while (end >= 0 && !Number.isFinite(recent[key][end])) end--;
+  const days = [];
+  for (let i = Math.max(0, end - n + 1); i <= end; i++) {
+    const date = parseIso(recent.time[i]), x = recent[key][i];
+    if (!Number.isFinite(x)) { days.push({ date, x: null, pct: null, band: 'none' }); continue; }
+    const samples = sameDates(clim, key, [date[1], date[2]]);
+    const pct = percentile(samples, x);
+    days.push({ date, x, pct, band: verdict(pct, x, summary(samples)).band });
+  }
+  const had = days.filter((d) => d.pct != null);
+  return {
+    days, n: had.length,
+    above: had.filter((d) => d.pct > 50).length,
+    warm: had.filter((d) => d.pct >= 70).length,
+    cool: had.filter((d) => d.pct <= 30).length,
+  };
+}
+
 // ---- rain ------------------------------------------------------------------------------
 // Most days have no rain, so a percentile of the amount says nothing. The question splits
 // in two: how often is a day around this date wet at all, and when it is, how wet. "Wet"

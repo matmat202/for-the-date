@@ -161,6 +161,28 @@ function drawChart(f) {
     : `Around this date, the yearly average of these ${what} changed by ${L.degDiff(t.perDecade, u)} a decade over the 30 years (a straight-line fit; one place's fortnight is noisy, so read it as a hint rather than a measurement).`;
 }
 
+// The last 30 days, each against its own date. Read from the archive (the same model as the
+// 30 years), so unlike the week there is no gap to take off.
+function drawMonth() {
+  const d = state.data, u = state.unit, what = state.low ? 'low' : 'high';
+  const m = L.month(d.clim, d.recent, key());
+  if (!m.n) { $('monthCard').hidden = true; return; }
+  $('monthCard').hidden = false;
+  const first = m.days[0].date, last = m.days.at(-1).date;
+  const strip = $('days'); strip.replaceChildren();
+  for (const day of m.days) {
+    const i = document.createElement('i'); i.dataset.band = day.band;
+    i.title = day.x == null ? `${L.dateWords(day.date)}: no record` : `${L.dateWords(day.date)}: ${L.deg(day.x, u)}, warmer than ${Math.round(day.pct)}% of past ${what}s for the date`;
+    strip.append(i);
+  }
+  $('mTitle').textContent = `The last ${m.days.length} days, each against its own date`;
+  const b = document.createElement('b'); b.textContent = `${m.above} of ${m.n}`;
+  $('mSum').replaceChildren(b, ` days from ${L.dateWords(first)} to ${L.dateWords(last)} had a ${what} above the typical one for their date: ${m.warm} warmer than usual and ${m.cool} cooler than usual.`);
+  strip.setAttribute('aria-label', `${m.days.length} days of ${what}s in ${state.at.label}, ${L.dateWords(first)} to ${L.dateWords(last)}: ${m.warm} warmer than usual, ${m.cool} cooler, ${m.n - m.warm - m.cool} about usual`);
+  $('mFrom').textContent = L.dateWords(first); $('mTo').textContent = L.dateWords(last);
+  $('mMore').textContent = `Each day's ${what} from the historical record, ranked among the 450 ${what}s of its own fortnight in 1991–2020, coloured as the week above. "Usual" is the middle 40%.${L.iso(last) < L.iso(L.addDays(today(), -1)) ? ` The record runs a few days behind, so the strip ends on ${L.dateWords(last)}.` : ''}`;
+}
+
 function draw() {
   $('hi').setAttribute('aria-pressed', String(!state.low));
   $('lo').setAttribute('aria-pressed', String(state.low));
@@ -170,6 +192,7 @@ function draw() {
   drawWeek();
   drawChart(drawCard());
   drawRain(theDate());
+  drawMonth();
   sync();
 }
 
@@ -183,7 +206,7 @@ async function choose(place) {
   const asked = place.label;
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
-  $('facts').hidden = true; $('rain').hidden = true; $('more').textContent = '';
+  $('facts').hidden = true; $('rain').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
   try {
     const data = await load(place);
     if (state.at.label !== asked) return; // a later pick won
@@ -193,7 +216,7 @@ async function choose(place) {
     draw();
   } catch (e) {
     if (state.at.label !== asked) return;
-    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true;
+    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('monthCard').hidden = true;
     $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: `Could not reach Open-Meteo (${e.message}). Try again in a moment.` }));
   }
 }
