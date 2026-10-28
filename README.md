@@ -2,7 +2,7 @@
 
 **<https://matmat202.github.io/for-the-date/>**
 
-Is today warm or cold *for the date*? Pick any town of 15,000 or more people and the page
+Is today warm or cold, wet or dry, *for the date*? Pick any town of 15,000 or more people and the page
 puts this week's forecast high (or low) against the same stretch of the calendar in each of
 the 30 years from 1991 to 2020: the 15 days centred on the date, so 450 past days. You get
 the share of those days that were colder, a plain verdict (about usual, warmer than usual,

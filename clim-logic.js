@@ -82,6 +82,37 @@ export function verdict(pct, x, sum) {
   return { band: 'much-cooler', words: 'much cooler than usual' };
 }
 
+// ---- rain ------------------------------------------------------------------------------
+// Most days have no rain, so a percentile of the amount says nothing. The question splits
+// in two: how often is a day around this date wet at all, and when it is, how wet. "Wet"
+// is 2.5 mm (a tenth of an inch) or more, because below that the archive is not a fair
+// record: against NOAA's 1991-2020 station normals for 30 US cities (ftd-rain, 2026-10-28)
+// it counted days of 0.01 inch or more 6.3 points too often at the median, and 36 of 120
+// cells were 10+ points out; at 0.10 inch the median gap was 3.0 points and none was 20+.
+export const WET = 2.5;
+// An outcome is unusual for the date when fewer than this share of past days had it.
+export const RARE = 20;
+export function rain(samples, x) {
+  const n = samples.length;
+  if (!n) return { band: 'none', words: 'no record to compare with' };
+  const wet = samples.filter((s) => s.v >= WET);
+  const pWet = (100 * wet.length) / n;
+  const out = { n, wet: wet.length, pWet, wetSum: wet.length ? summary(wet) : null };
+  if (x == null) return { ...out, band: 'none', words: 'no rain forecast for this day' };
+  if (x >= WET) {
+    out.rank = percentile(wet, x); // null when no past day was wet
+    if (pWet < RARE) return { ...out, band: 'wet-rare', words: 'a wet day, which is unusual for the date' };
+    return { ...out, band: 'wet', words: 'a wet day, as is usual for the date' };
+  }
+  if (100 - pWet < RARE) return { ...out, band: 'dry-rare', words: 'a dry day, which is unusual for the date' };
+  return { ...out, band: 'dry', words: 'a dry day, as is usual for the date' };
+}
+// An amount in the reader's unit: millimetres, or inches where the page shows °F.
+export function amount(mm, unit) {
+  if (unit === 'F') return `${(mm / 25.4).toFixed(2)} in`;
+  return `${mm < 10 ? mm.toFixed(1) : Math.round(mm)} mm`;
+}
+
 // The forecast model and the archive are different models, and on 2026-10-26 they
 // disagreed by up to 1.6 °C on the same past days (Reykjavík's lows). So the page measures
 // that gap for this town over the days both cover, and takes it off the forecast before

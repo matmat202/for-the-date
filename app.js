@@ -7,6 +7,7 @@ const ARCHIVE = 'https://archive-api.open-meteo.com/v1/archive';
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const PAST = 60, AHEAD = 7;
 const KEYS = { hi: 'temperature_2m_max', lo: 'temperature_2m_min' };
+const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max';
 let PLACES = [], ZONES = [], DEF_UNIT = 'C';
 const state = { at: null, date: null, low: false, unit: 'C', data: null };
 const cache = new Map();
@@ -26,13 +27,13 @@ async function getJSON(base, params) {
 function load(place) {
   const k = place.label;
   if (cache.has(k)) return cache.get(k);
-  const base = { latitude: place.lat, longitude: place.lon, daily: `${KEYS.hi},${KEYS.lo}`, timezone: place.tz };
+  const base = { latitude: place.lat, longitude: place.lon, daily: `${KEYS.hi},${KEYS.lo},${RAIN}`, timezone: place.tz };
   const today = L.ymdIn(Date.now(), place.tz);
   const utc = L.ymdIn(Date.now(), 'UTC');
   const end = L.addDays(today, -1);
   const p = Promise.all([
     getJSON(ARCHIVE, { ...base, start_date: L.climRange().start, end_date: L.climRange().end }),
-    getJSON(FORECAST, { ...base, past_days: PAST, forecast_days: AHEAD }),
+    getJSON(FORECAST, { ...base, daily: `${base.daily},${CHANCE}`, past_days: PAST, forecast_days: AHEAD }),
     getJSON(ARCHIVE, { ...base, start_date: L.iso(L.addDays(today, -PAST)), end_date: L.iso(L.iso(end) > L.iso(utc) ? utc : end) }),
   ]).then(([clim, fc, recent]) => ({ clim, fc, recent, off: { hi: L.offset(fc, recent, KEYS.hi), lo: L.offset(fc, recent, KEYS.lo) } }));
   p.catch(() => cache.delete(k));
@@ -106,6 +107,24 @@ function drawCard() {
   return f;
 }
 
+// Rain is compared as it stands: on the same past days the two models agreed on wet or dry
+// 92% of the time (ftd-rain, 20 towns), and a mean gap is no help for amounts that are mostly 0.
+function drawRain(date) {
+  const d = state.data, u = state.unit, p = $('rain');
+  const i = d.fc.time.indexOf(L.iso(date));
+  const x = i < 0 || !d.fc[RAIN] ? null : d.fc[RAIN][i];
+  const chance = i < 0 || !d.fc[CHANCE] ? null : d.fc[CHANCE][i];
+  const r = L.rain(L.sameDates(d.clim, RAIN, [date[1], date[2]]), x);
+  p.dataset.band = r.band;
+  if (r.band === 'none') { p.hidden = true; return; }
+  p.hidden = false;
+  const b = document.createElement('b'); b.textContent = L.amount(x, u);
+  const odds = chance == null ? '' : ` (${Math.round(chance)}% chance of rain)`;
+  const past = `Around ${L.dateWords(date)}, ${r.wet} of the ${r.n} past days (${Math.round(r.pWet)}%) were wet, meaning ${L.amount(L.WET, u)} or more`;
+  const rank = r.rank == null ? '' : `; ${L.amount(x, u)} is more than ${Math.round(r.rank)}% of those wet days`;
+  p.replaceChildren('Rain forecast: ', b, `${odds}, ${r.words}. ${past}${rank}.`);
+}
+
 function drawChart(f) {
   if (!f.sum || f.x == null) { $('chartCard').hidden = true; return; }
   $('chartCard').hidden = false;
@@ -149,6 +168,7 @@ function draw() {
   if (!state.data) return;
   drawWeek();
   drawChart(drawCard());
+  drawRain(theDate());
   sync();
 }
 
@@ -162,7 +182,7 @@ async function choose(place) {
   const asked = place.label;
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
-  $('facts').hidden = true; $('more').textContent = '';
+  $('facts').hidden = true; $('rain').hidden = true; $('more').textContent = '';
   try {
     const data = await load(place);
     if (state.at.label !== asked) return; // a later pick won
@@ -172,7 +192,7 @@ async function choose(place) {
     draw();
   } catch (e) {
     if (state.at.label !== asked) return;
-    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true;
+    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true;
     $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: `Could not reach Open-Meteo (${e.message}). Try again in a moment.` }));
   }
 }

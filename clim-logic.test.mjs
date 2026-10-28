@@ -36,6 +36,19 @@ if (existsSync(FX + 'facts.json')) {
     const o = L.offset(fc, rc, `temperature_2m_${k}`), f = facts[`offset_${k}`];
     near(`offset ${k}`, o.by, f.by); eq(`offset ${k} days`, o.n, f.n);
   }
+  for (const [name, md] of [['rain_oct26', [10, 26]], ['rain_oct28', [10, 28]], ['rain_jan15', [1, 15]], ['rain_jul15', [7, 15]]]) {
+    const f = facts[name], r = L.rain(L.sameDates(clim, 'precipitation_sum', md), f.x);
+    eq(`${name}: ${f.wet} of ${f.n} days wet`, [r.n, r.wet], [f.n, f.wet]);
+    near(`${name}: share wet`, r.pWet, f.pWet);
+    if (f.x >= L.WET && f.rank != null) near(`${name}: rank of ${f.x} mm among wet days`, r.rank, f.rank);
+    if (f.wetMedian != null) near(`${name}: median wet day`, r.wetSum.median, f.wetMedian);
+  }
+  // Palo Alto, about 9% of late-October days wet: a dry day is usual, 12 mm is not.
+  eq('rain: dry 26 Oct is usual', L.rain(L.sameDates(clim, 'precipitation_sum', [10, 26]), 0).band, 'dry');
+  eq('rain: 12 mm on 28 Oct is unusual', L.rain(L.sameDates(clim, 'precipitation_sum', [10, 28]), 12).band, 'wet-rare');
+  eq('rain: 10 mm on 15 Jan (25% wet) is usual', L.rain(L.sameDates(clim, 'precipitation_sum', [1, 15]), 10).band, 'wet');
+  const jul = L.rain(L.sameDates(clim, 'precipitation_sum', [7, 15]), 3);
+  eq('rain: a wet 15 July with no wet day in 30 years has no rank, and is unusual', [jul.band, jul.rank, jul.wetSum], ['wet-rare', null, null]);
 } else console.log('(fixtures not present: the Python cross-check is skipped)');
 
 // --- the window, by hand -----------------------------------------------------------------
@@ -136,6 +149,25 @@ eq('names are cut at 120', L.decodeState('?at=' + 'y'.repeat(130)).at.length, 12
   eq('decode', L.decodeState(s), { at: 'Reykjavík, Capital Region, Iceland', date: [2026, 10, 28], low: true, unit: 'F' });
   eq('encode: today and the default unit drop out', L.encodeState({ at: 'X', date: [2026, 10, 26], today: [2026, 10, 26], low: false, unit: 'C', defUnit: 'C' }), '?at=X');
   eq('decode: a bad date and unit are dropped', L.decodeState('?d=2026-02-30&u=K'), { at: null, date: null, low: false, unit: null });
+}
+
+// --- rain, by hand ---------------------------------------------------------------------------
+{
+  const S = (vs) => vs.map((v, i) => ({ year: 2000 + i, off: 0, v }));
+  const r = L.rain(S([0, 0, 2.5, 2.4, 10, 0, 0, 0, 0, 0]), 10);
+  eq('2.5 mm counts as wet, 2.4 does not', r.wet, 2);
+  near('a tie with the wettest counts half', r.rank, 75);
+  eq('wet share exactly 20% is not rare', r.band, 'wet');
+  eq('wet share under 20% is rare', L.rain(S([0, 0, 0, 0, 0, 0, 0, 0, 0, 3]), 5).band, 'wet-rare');
+  eq('dry share under 20% is rare', L.rain(S([3, 3, 3, 3, 3, 3, 3, 3, 3, 0]), 0).band, 'dry-rare');
+  eq('dry share exactly 20% is not rare', L.rain(S([3, 3, 3, 3, 3, 3, 3, 3, 0, 0]), 0).band, 'dry');
+  eq('no forecast: none', L.rain(S([0, 3]), null).band, 'none');
+  eq('no record: none', L.rain([], 3).band, 'none');
+  eq('mm under 10 to one place', L.amount(2.54, 'C'), '2.5 mm');
+  eq('mm from 10 whole', L.amount(12.4, 'C'), '12 mm');
+  eq('inches where the page is in °F', L.amount(L.WET, 'F'), '0.10 in');
+  eq('an inch is 25.4 mm', L.amount(25.4, 'F'), '1.00 in');
+  eq('a trace under 2.5 mm is a dry day', L.rain(S([3, 3, 3, 3, 3, 3, 3, 3, 3, 0]), 1.2).band, 'dry-rare');
 }
 
 // --- the towns: same as Daylight's, and the picker finds them ------------------------------
