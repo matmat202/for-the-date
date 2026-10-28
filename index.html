@@ -132,6 +132,9 @@ fortnight of the calendar in each of the 30 years from 1991 to 2020.</p>
 </footer>
 </main>
 <link rel="preload" href="data/seed.json" as="fetch" crossorigin>
+<!-- Fetched in parallel with app.js instead of behind it: each was one more round trip
+     before the first draw (projects/site-speed, 2026-10-28). -->
+<link rel="modulepreload" href="clim-logic.js">
 <script type="module" src="app.js"></script>
 </body>
 </html>
