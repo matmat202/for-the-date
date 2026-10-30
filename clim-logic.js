@@ -164,6 +164,27 @@ export function snow(samples, x) {
   if (100 - pSnowy < RARE) return { ...out, band: 'clear-rare', words: 'no snow, which is unusual for the date' };
   return { ...out, band: 'clear', words: 'no snow, as is usual for the date' };
 }
+// The snow record is a second request, because a fourth variable on the 30-year one made a
+// second town inside a minute fail: Open-Meteo answered 429 to the 2nd 4-variable load, and
+// 200 to three 3-variable ones (ftd-snow, 2026-10-30). So the page asks only where snow is
+// possible, from the record it already has. A snowy day was never one with under 2 mm of
+// precipitation (at most 1.04 cm of snow fell per mm) or a low above 4.3 °C: 0 of 3,805
+// snowy days at 11 US stations break DAMP and COLD. So this share bounds the snowy share
+// from above; under SHOW, a day with no snow forecast would get no line anyway. Palo Alto's
+// highest, over every date of the year, is 4.9% (fixtures/facts.json may_max).
+export const DAMP = 2, COLD = 5;
+export function maySnow(clim, md) {
+  const lo = new Map(sameDates(clim, 'temperature_2m_min', md).map((s) => [`${s.year}:${s.off}`, s.v]));
+  const pr = sameDates(clim, 'precipitation_sum', md);
+  if (!pr.length) return 0;
+  return (100 * pr.filter((s) => s.v >= DAMP && lo.has(`${s.year}:${s.off}`) && lo.get(`${s.year}:${s.off}`) <= COLD).length) / pr.length;
+}
+// Whether the page should fetch the snow record for these dates: snow forecast on any of
+// them, or snow possible (maySnow) on any of them.
+export function wantSnow(fc, clim, dates, key = 'snowfall_sum') {
+  const fcSnow = dates.some((date) => { const i = fc.time.indexOf(iso(date)); return i >= 0 && !!fc[key] && fc[key][i] >= SNOWY; });
+  return fcSnow || dates.some((date) => maySnow(clim, [date[1], date[2]]) >= SHOW);
+}
 // Snow in centimetres, or inches where the page shows °F.
 export function snowAmount(cm, unit) {
   if (unit === 'F') return `${(cm / 2.54).toFixed(1)} in`;

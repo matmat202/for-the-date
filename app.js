@@ -28,13 +28,13 @@ async function getJSON(base, params) {
 function load(place) {
   const k = place.label;
   if (cache.has(k)) return cache.get(k);
-  const base = { latitude: place.lat, longitude: place.lon, daily: `${KEYS.hi},${KEYS.lo},${RAIN},${SNOW}`, timezone: place.tz };
+  const base = { latitude: place.lat, longitude: place.lon, daily: `${KEYS.hi},${KEYS.lo},${RAIN}`, timezone: place.tz };
   const today = L.ymdIn(Date.now(), place.tz);
   const utc = L.ymdIn(Date.now(), 'UTC');
   const end = L.addDays(today, -1);
   const p = Promise.all([
     getJSON(ARCHIVE, { ...base, start_date: L.climRange().start, end_date: L.climRange().end }),
-    getJSON(FORECAST, { ...base, daily: `${base.daily},${CHANCE}`, past_days: PAST, forecast_days: AHEAD }),
+    getJSON(FORECAST, { ...base, daily: `${base.daily},${CHANCE},${SNOW}`, past_days: PAST, forecast_days: AHEAD }),
     getJSON(ARCHIVE, { ...base, start_date: L.iso(L.addDays(today, -PAST)), end_date: L.iso(L.iso(end) > L.iso(utc) ? utc : end) }),
   ]).then(([clim, fc, recent]) => ({ clim, fc, recent, off: { hi: L.offset(fc, recent, KEYS.hi), lo: L.offset(fc, recent, KEYS.lo) } }));
   p.catch(() => cache.delete(k));
@@ -143,6 +143,17 @@ function drawSnow(date) {
   p.replaceChildren('Snow forecast: ', b, `, ${r.words}. ${past}${rank}.`);
 }
 
+// The snow record, fetched after the page has drawn and only where snow is possible this
+// week (L.maySnow, or snow in the forecast). A failure leaves the line hidden, nothing else.
+function loadSnow(place, d) {
+  if (d.clim[SNOW] || d.snowAsked) return Promise.resolve();
+  if (!L.wantSnow(d.fc, d.clim, weekOf(d.fc), SNOW)) return Promise.resolve();
+  d.snowAsked = true;
+  return getJSON(ARCHIVE, { latitude: place.lat, longitude: place.lon, daily: SNOW, timezone: place.tz, start_date: L.climRange().start, end_date: L.climRange().end })
+    .then((s) => { if (s.time.length === d.clim.time.length && s.time[0] === d.clim.time[0]) d.clim[SNOW] = s[SNOW]; })
+    .catch(() => { d.snowAsked = false; });
+}
+
 function drawChart(f) {
   if (!f.sum || f.x == null) { $('chartCard').hidden = true; return; }
   $('chartCard').hidden = false;
@@ -232,6 +243,7 @@ async function choose(place) {
     const week = weekOf(data.fc).map(L.iso);
     if (state.date && !week.includes(L.iso(state.date))) state.date = null;
     draw();
+    loadSnow(place, data).then(() => { if (state.data === data) drawSnow(theDate()); });
   } catch (e) {
     if (state.at.label !== asked) return;
     state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('monthCard').hidden = true;

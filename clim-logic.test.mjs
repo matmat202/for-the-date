@@ -188,6 +188,15 @@ if (existsSync(FX + 'facts.json')) {
     near(`snow ${town} ${name}: share`, r.pSnowy, f.pSnowy);
     if (f.x >= L.SNOWY && f.rank != null) near(`snow ${town} ${name}: rank of ${f.x} cm`, r.rank, f.rank);
   }
+  for (const k of ['oct26', 'jan15', 'dec20']) near(`maySnow Palo Alto ${k}`, L.maySnow(towns.pa, k === 'oct26' ? [10, 26] : k === 'jan15' ? [1, 15] : [12, 20]), facts[`may_${k}`]);
+  let top = 0;
+  for (let m = 1; m <= 12; m++) for (let d = 1; d <= [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]; d++) top = Math.max(top, L.maySnow(towns.pa, [m, d]));
+  near('maySnow: Palo Alto\'s highest over the year', top, facts.may_max);
+  const noSnow = { time: ['2026-01-15', '2026-01-16'], snowfall_sum: [0, 1] };
+  eq('wantSnow: Palo Alto in January with none forecast asks nothing', L.wantSnow(noSnow, towns.pa, [[2026, 1, 15], [2026, 1, 16]]), false);
+  eq('wantSnow: snow forecast on any day asks', L.wantSnow({ ...noSnow, snowfall_sum: [0, 2.54] }, towns.pa, [[2026, 1, 15], [2026, 1, 16]]), true);
+  eq('wantSnow: snow forecast off the dates does not', L.wantSnow({ ...noSnow, snowfall_sum: [0, 2.54] }, towns.pa, [[2026, 1, 15]]), false);
+  eq('wantSnow: a forecast with no snow field asks nothing in Palo Alto', L.wantSnow({ time: noSnow.time }, towns.pa, [[2026, 1, 15]]), false);
   const at = (town, md, x) => L.snow(L.sameDates(towns[town], 'snowfall_sum', md), x).band;
   eq('snow: Palo Alto with none forecast has no line', at('pa', [1, 15], 0), 'none');
   eq('snow: 6 cm in Palo Alto is unusual', at('pa', [10, 28], 6), 'snowy-rare');
@@ -213,6 +222,29 @@ if (existsSync(FX + 'facts.json')) {
   eq('cm from 10 whole', L.snowAmount(12.4, 'C'), '12 cm');
   eq('an inch of snow under °F', L.snowAmount(L.SNOWY, 'F'), '1.0 in');
   eq('inches to one place', L.snowAmount(15, 'F'), '5.9 in');
+}
+
+// --- the snow gate, by hand: 30 years of dry, mild days, with some planted at the edges ----
+{
+  const { start, end } = L.climRange();
+  const time = [];
+  for (let d = L.parseIso(start); L.iso(d) <= end; d = L.addDays(d, 1)) time.push(L.iso(d));
+  const make = (plant) => {
+    const c = { time, precipitation_sum: time.map(() => 0), temperature_2m_min: time.map(() => 10) };
+    plant.forEach(([y, pr, lo]) => { const i = time.indexOf(`${y}-01-15`); c.precipitation_sum[i] = pr; c.temperature_2m_min[i] = lo; });
+    return c;
+  };
+  const years = (n, pr, lo) => Array.from({ length: n }, (_, k) => [1991 + k, pr, lo]);
+  near('maySnow: 2 mm at 5 °C counts (both edges)', L.maySnow(make(years(9, 2, 5)), [1, 15]), 2);
+  near('maySnow: 1.9 mm does not', L.maySnow(make(years(9, 1.9, 5)), [1, 15]), 0);
+  near('maySnow: a low of 5.1 °C does not', L.maySnow(make(years(9, 2, 5.1)), [1, 15]), 0);
+  const fc = { time: ['2026-01-15'], snowfall_sum: [0] };
+  eq('wantSnow: 23 of 450 possible (5.1%) asks', L.wantSnow(fc, make(years(23, 5, 0)), [[2026, 1, 15]]), true);
+  const sparse = make([[1991, 5, 0], ...Array.from({ length: 19 }, (_, k) => [1992 + k, 0, 10])]);
+  sparse.precipitation_sum = sparse.precipitation_sum.map((v, i) => (time[i].endsWith('-01-15') && +time[i].slice(0, 4) <= 2010 ? v : null));
+  near('maySnow: nulls are left out of the share', L.maySnow(sparse, [1, 15]), 5);
+  eq('wantSnow: exactly 5% asks', L.wantSnow(fc, sparse, [[2026, 1, 15]]), true);
+  eq('wantSnow: 22 of 450 (4.9%) does not', L.wantSnow(fc, make(years(22, 5, 0)), [[2026, 1, 15]]), false);
 }
 
 // --- the towns: same as Daylight's, and the picker finds them ------------------------------
