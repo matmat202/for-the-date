@@ -177,6 +177,44 @@ eq('names are cut at 120', L.decodeState('?at=' + 'y'.repeat(130)).at.length, 12
   eq('a trace under 2.5 mm is a dry day', L.rain(S([3, 3, 3, 3, 3, 3, 3, 3, 3, 0]), 1.2).band, 'dry-rare');
 }
 
+// --- snow, against Python (Palo Alto never snows; Reykjavik does) and by hand --------------
+if (existsSync(FX + 'facts.json')) {
+  const facts = JSON.parse(readFileSync(FX + 'facts.json', 'utf8'));
+  const towns = { pa: JSON.parse(readFileSync(FX + 'palo-alto-clim.json', 'utf8')).daily, rk: JSON.parse(readFileSync(FX + 'reykjavik-snow.json', 'utf8')).daily };
+  eq('the snow fixture is the range the page asks for', [towns.rk.time[0], towns.rk.time.at(-1)], [L.climRange().start, L.climRange().end]);
+  for (const town of ['pa', 'rk']) for (const [name, md] of [['oct26', [10, 26]], ['oct26s', [10, 26]], ['oct28', [10, 28]], ['jan15', [1, 15]], ['mar1', [3, 1]]]) {
+    const f = facts[`snow_${town}_${name}`], r = L.snow(L.sameDates(towns[town], 'snowfall_sum', md), f.x);
+    eq(`snow ${town} ${name}: ${f.snowy} of ${f.n} snowy`, [r.n, r.snowy], [f.n, f.snowy]);
+    near(`snow ${town} ${name}: share`, r.pSnowy, f.pSnowy);
+    if (f.x >= L.SNOWY && f.rank != null) near(`snow ${town} ${name}: rank of ${f.x} cm`, r.rank, f.rank);
+  }
+  const at = (town, md, x) => L.snow(L.sameDates(towns[town], 'snowfall_sum', md), x).band;
+  eq('snow: Palo Alto with none forecast has no line', at('pa', [1, 15], 0), 'none');
+  eq('snow: 6 cm in Palo Alto is unusual', at('pa', [10, 28], 6), 'snowy-rare');
+  eq('snow: Reykjavik 26 Oct (4% snowy) has no line', at('rk', [10, 26], 0), 'none');
+  eq('snow: Reykjavik 28 Oct (5.1% snowy) does', at('rk', [10, 28], 0), 'clear');
+}
+{
+  const S = (vs) => vs.map((v, i) => ({ year: 2000 + i, off: 0, v }));
+  const r = L.snow(S([0, 0, 2.54, 2.5, 10, 0, 0, 0, 0, 0]), 10);
+  eq('2.54 cm counts as snowy, 2.5 does not', r.snowy, 2);
+  near('a tie with the snowiest counts half', r.rank, 75);
+  eq('snowy share exactly 20% is not rare', r.band, 'snowy');
+  eq('snowy share under 20% is rare', L.snow(S([0, 0, 0, 0, 0, 0, 0, 0, 0, 3]), 5).band, 'snowy-rare');
+  eq('no snow with 10% snowy days is shown', L.snow(S([0, 0, 0, 0, 0, 0, 0, 0, 0, 3]), 0).band, 'clear');
+  eq('no snow under 5% snowy days is not', L.snow(S([...Array(19).fill(0), 3, 0]), 0).band, 'none');
+  eq('no snow at exactly 5% is shown', L.snow(S([...Array(19).fill(0), 3]), 0).band, 'clear');
+  eq('no snow where 80%+ are snowy is unusual', L.snow(S([3, 3, 3, 3, 3, 3, 3, 3, 3, 0]), 0).band, 'clear-rare');
+  eq('no snow at exactly 80% snowy is not', L.snow(S([3, 3, 3, 3, 3, 3, 3, 3, 0, 0]), 0).band, 'clear');
+  eq('a dusting under an inch is not a snowy day', L.snow(S([3, 3, 3, 3, 3, 3, 3, 3, 3, 0]), 2.5).band, 'clear-rare');
+  eq('snow: no forecast, none', L.snow(S([0, 3]), null).band, 'none');
+  eq('snow: no record, none', L.snow([], 3).band, 'none');
+  eq('cm under 10 to one place', L.snowAmount(L.SNOWY, 'C'), '2.5 cm');
+  eq('cm from 10 whole', L.snowAmount(12.4, 'C'), '12 cm');
+  eq('an inch of snow under °F', L.snowAmount(L.SNOWY, 'F'), '1.0 in');
+  eq('inches to one place', L.snowAmount(15, 'F'), '5.9 in');
+}
+
 // --- the towns: same as Daylight's, and the picker finds them ------------------------------
 {
   const doc = JSON.parse(readFileSync(here('data/places.json'), 'utf8'));

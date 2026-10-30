@@ -139,6 +139,37 @@ export function amount(mm, unit) {
   return `${mm < 10 ? mm.toFixed(1) : Math.round(mm)} mm`;
 }
 
+// ---- snow ------------------------------------------------------------------------------
+// The same split as rain, on snowfall. "Snowy" is an inch (2.54 cm) or more, again measured:
+// against NOAA's 1991-2020 snowfall normals for 11 snowy US stations x 4 winter dates
+// (ftd-snow, 2026-10-30), the archive's share of days at 0.1 inch or more ran +4.2 points at
+// the median with 4 of 44 cells 20+ points out (Anchorage +23); at 1 inch the median gap was
+// -0.9 points and none was 10+. A town where snowy days are rarer than SHOW in 100 around the
+// date gets no snow line unless snow is forecast: Singapore does not need telling.
+export const SNOWY = 2.54;
+export const SHOW = 5;
+export function snow(samples, x) {
+  const n = samples.length;
+  if (!n) return { band: 'none', words: 'no record to compare with' };
+  const snowy = samples.filter((s) => s.v >= SNOWY);
+  const pSnowy = (100 * snowy.length) / n;
+  const out = { n, snowy: snowy.length, pSnowy };
+  if (x == null) return { ...out, band: 'none', words: 'no snow forecast for this day' };
+  if (x >= SNOWY) {
+    out.rank = percentile(snowy, x); // null when no past day was snowy
+    if (pSnowy < RARE) return { ...out, band: 'snowy-rare', words: 'a snowy day, which is unusual for the date' };
+    return { ...out, band: 'snowy', words: 'a snowy day, as is usual for the date' };
+  }
+  if (pSnowy < SHOW) return { ...out, band: 'none', words: 'snow is rare here for the date' };
+  if (100 - pSnowy < RARE) return { ...out, band: 'clear-rare', words: 'no snow, which is unusual for the date' };
+  return { ...out, band: 'clear', words: 'no snow, as is usual for the date' };
+}
+// Snow in centimetres, or inches where the page shows °F.
+export function snowAmount(cm, unit) {
+  if (unit === 'F') return `${(cm / 2.54).toFixed(1)} in`;
+  return `${cm < 10 ? cm.toFixed(1) : Math.round(cm)} cm`;
+}
+
 // The forecast model and the archive are different models, and on 2026-10-26 they
 // disagreed by up to 1.6 °C on the same past days (Reykjavík's lows). So the page measures
 // that gap for this town over the days both cover, and takes it off the forecast before

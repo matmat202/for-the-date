@@ -7,7 +7,7 @@ const ARCHIVE = 'https://archive-api.open-meteo.com/v1/archive';
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const PAST = 60, AHEAD = 7;
 const KEYS = { hi: 'temperature_2m_max', lo: 'temperature_2m_min' };
-const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max';
+const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max', SNOW = 'snowfall_sum';
 let PLACES = [], ZONES = [], DEF_UNIT = 'C';
 let MORE = null; // while the page runs on seed.json: what a search with no match says
 const state = { at: null, date: null, low: false, unit: 'C', data: null };
@@ -28,7 +28,7 @@ async function getJSON(base, params) {
 function load(place) {
   const k = place.label;
   if (cache.has(k)) return cache.get(k);
-  const base = { latitude: place.lat, longitude: place.lon, daily: `${KEYS.hi},${KEYS.lo},${RAIN}`, timezone: place.tz };
+  const base = { latitude: place.lat, longitude: place.lon, daily: `${KEYS.hi},${KEYS.lo},${RAIN},${SNOW}`, timezone: place.tz };
   const today = L.ymdIn(Date.now(), place.tz);
   const utc = L.ymdIn(Date.now(), 'UTC');
   const end = L.addDays(today, -1);
@@ -126,6 +126,23 @@ function drawRain(date) {
   p.replaceChildren('Rain forecast: ', b, `${odds}, ${r.words}. ${past}${rank}.`);
 }
 
+// Snow is compared as it stands too, for the same reason as rain.
+function drawSnow(date) {
+  const d = state.data, u = state.unit, p = $('snow');
+  const i = d.fc.time.indexOf(L.iso(date));
+  const x = i < 0 || !d.fc[SNOW] ? null : d.fc[SNOW][i];
+  const r = d.clim[SNOW] ? L.snow(L.sameDates(d.clim, SNOW, [date[1], date[2]]), x) : { band: 'none' };
+  p.dataset.band = r.band;
+  if (r.band === 'none') { p.hidden = true; return; }
+  p.hidden = false;
+  const b = document.createElement('b'); b.textContent = L.snowAmount(x, u);
+  const past = r.snowy
+    ? `Around ${L.dateWords(date)}, ${r.snowy} of the ${r.n} past days (${Math.round(r.pSnowy)}%) had ${L.snowAmount(L.SNOWY, u)} of snow or more`
+    : `Around ${L.dateWords(date)}, none of the ${r.n} past days had ${L.snowAmount(L.SNOWY, u)} of snow or more`;
+  const rank = r.rank == null ? '' : `; ${L.snowAmount(x, u)} is more than ${Math.round(r.rank)}% of those snowy days`;
+  p.replaceChildren('Snow forecast: ', b, `, ${r.words}. ${past}${rank}.`);
+}
+
 function drawChart(f) {
   if (!f.sum || f.x == null) { $('chartCard').hidden = true; return; }
   $('chartCard').hidden = false;
@@ -192,6 +209,7 @@ function draw() {
   drawWeek();
   drawChart(drawCard());
   drawRain(theDate());
+  drawSnow(theDate());
   drawMonth();
   sync();
 }
@@ -206,7 +224,7 @@ async function choose(place) {
   const asked = place.label;
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
-  $('facts').hidden = true; $('rain').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
+  $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
   try {
     const data = await load(place);
     if (state.at.label !== asked) return; // a later pick won
@@ -216,7 +234,7 @@ async function choose(place) {
     draw();
   } catch (e) {
     if (state.at.label !== asked) return;
-    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('monthCard').hidden = true;
+    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('monthCard').hidden = true;
     $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: `Could not reach Open-Meteo (${e.message}). Try again in a moment.` }));
   }
 }
