@@ -284,5 +284,39 @@ if (existsSync(FX + 'facts.json')) {
   eq('month: an empty record', L.month(clim, { time: [], v: [] }, 'v').n, 0);
 }
 
+// --- wind, against Python on Palo Alto's archive, then by hand ----------------------------
+if (existsSync(FX + 'palo-alto-wind.json')) {
+  const facts = JSON.parse(readFileSync(FX + 'facts.json', 'utf8'));
+  const wd = JSON.parse(readFileSync(FX + 'palo-alto-wind.json', 'utf8')).daily;
+  eq('the wind fixture is the range the page asks for', [wd.time[0], wd.time.at(-1)], [L.climRange().start, L.climRange().end]);
+  for (const [name, md] of [['wind_oct26', [10, 26]], ['wind_jan15', [1, 15]], ['wind_jul15', [7, 15]], ['wind_feb29', [2, 29]]]) {
+    const f = facts[name], r = L.wind(L.sameDates(wd, 'wind_speed_10m_max', md), f.x);
+    eq(`${name}: ${f.n} days`, r.sum.n, f.n);
+    near(`${name}: rank of ${f.x} km/h`, r.pct, f.pct);
+    eq(`${name}: max`, r.sum.max, f.max);
+    near(`${name}: median`, r.sum.median, f.median);
+  }
+  eq('wind: 20 km/h on 26 Oct in Palo Alto is much windier', L.wind(L.sameDates(wd, 'wind_speed_10m_max', [10, 26]), 20).band, 'much-windier');
+}
+{
+  const S = (vs) => vs.map((v, i) => ({ year: 1991 + i, off: 0, v }));
+  const ten = S([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  eq('wind: over the max is a record', L.wind(ten, 10.5).band, 'record-windy');
+  eq('wind: equal to the max is not', L.wind(ten, 10).band, 'much-windier');
+  eq('wind: 90th exactly is much windier', L.wind(ten, 9.5).band, 'much-windier');
+  eq('wind: under 90th is windier', L.wind(ten, 9).band, 'windier');
+  eq('wind: 70th exactly is windier', L.wind(ten, 7.5).band, 'windier');
+  eq('wind: under 70th is usual', L.wind(ten, 7).band, 'usual');
+  eq('wind: 30th exactly is calmer', L.wind(ten, 3.5).band, 'calmer');
+  eq('wind: over 30th is usual', L.wind(ten, 4).band, 'usual');
+  eq('wind: calmer than any past day is calmer, not a record', L.wind(ten, 0).band, 'calmer');
+  eq('wind: no forecast, none', L.wind(ten, null).band, 'none');
+  eq('wind: no record, none', L.wind([], 5).band, 'none');
+  eq('wind: the record words count the days', L.wind(ten, 11).words, 'windier than any of the 10 past days');
+  eq('km/h rounded', L.speed(19.6, 'C'), '20 km/h');
+  eq('mph from km/h', L.speed(32.2, 'F'), '20 mph');
+  eq('mph not km/h / 1.6 rounded wrong', L.speed(100, 'F'), '62 mph');
+}
+
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

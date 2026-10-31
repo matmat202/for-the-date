@@ -8,6 +8,7 @@ const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const PAST = 60, AHEAD = 7;
 const KEYS = { hi: 'temperature_2m_max', lo: 'temperature_2m_min' };
 const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max', SNOW = 'snowfall_sum';
+const WIND = 'wind_speed_10m_max'; // km/h, Open-Meteo's default
 let PLACES = [], ZONES = [], DEF_UNIT = 'C';
 let MORE = null; // while the page runs on seed.json: what a search with no match says
 const state = { at: null, date: null, low: false, unit: 'C', data: null };
@@ -34,9 +35,9 @@ function load(place) {
   const end = L.addDays(today, -1);
   const p = Promise.all([
     getJSON(ARCHIVE, { ...base, start_date: L.climRange().start, end_date: L.climRange().end }),
-    getJSON(FORECAST, { ...base, daily: `${base.daily},${CHANCE},${SNOW}`, past_days: PAST, forecast_days: AHEAD }),
-    getJSON(ARCHIVE, { ...base, start_date: L.iso(L.addDays(today, -PAST)), end_date: L.iso(L.iso(end) > L.iso(utc) ? utc : end) }),
-  ]).then(([clim, fc, recent]) => ({ clim, fc, recent, off: { hi: L.offset(fc, recent, KEYS.hi), lo: L.offset(fc, recent, KEYS.lo) } }));
+    getJSON(FORECAST, { ...base, daily: `${base.daily},${CHANCE},${SNOW},${WIND}`, past_days: PAST, forecast_days: AHEAD }),
+    getJSON(ARCHIVE, { ...base, daily: `${base.daily},${WIND}`, start_date: L.iso(L.addDays(today, -PAST)), end_date: L.iso(L.iso(end) > L.iso(utc) ? utc : end) }),
+  ]).then(([clim, fc, recent]) => ({ clim, fc, recent, off: { hi: L.offset(fc, recent, KEYS.hi), lo: L.offset(fc, recent, KEYS.lo), wind: L.offset(fc, recent, WIND) } }));
   p.catch(() => cache.delete(k));
   cache.set(k, p);
   return p;
@@ -143,6 +144,45 @@ function drawSnow(date) {
   p.replaceChildren('Snow forecast: ', b, `, ${r.words}. ${past}${rank}.`);
 }
 
+// Wind: the forecast's strongest wind, ranked among the 450 days once its record is in. The
+// record is a fourth 30-year request, and Open-Meteo weighs requests by length x variables per
+// minute: three variables plus snow already fill most of what two towns in a minute may use
+// (ftd-snow measured the 429), so a wind record fetched on every load would make the NEXT
+// town fail. It is fetched when asked for, once per town.
+function drawWind(date) {
+  const d = state.data, u = state.unit, p = $('wind');
+  const i = d.fc.time.indexOf(L.iso(date));
+  const raw = i < 0 || !d.fc[WIND] ? null : d.fc[WIND][i];
+  if (raw == null) { p.hidden = true; p.dataset.band = 'none'; return; }
+  p.hidden = false;
+  const b = document.createElement('b'); b.textContent = L.speed(raw, u);
+  if (!d.clim[WIND]) {
+    p.dataset.band = 'none';
+    const ask = document.createElement('button');
+    ask.type = 'button'; ask.id = 'windAsk';
+    ask.textContent = d.windAsked ? 'Fetching 30 years of wind…' : d.windFailed ? 'Could not fetch it: try again' : 'Compare with 1991–2020';
+    ask.disabled = !!d.windAsked;
+    ask.addEventListener('click', () => { const place = state.at; loadWind(place, d).then(() => { if (state.data === d) drawWind(theDate()); }); drawWind(theDate()); });
+    p.replaceChildren('Wind forecast: ', b, ' at its strongest. ', ask);
+    return;
+  }
+  const off = d.off.wind, x = Math.max(0, raw - (off.short ? 0 : off.by));
+  const w = L.wind(L.sameDates(d.clim, WIND, [date[1], date[2]]), x);
+  p.dataset.band = w.band;
+  if (w.band === 'none') { p.replaceChildren('Wind forecast: ', b, ` at its strongest; ${w.words}.`); return; }
+  const gap = off.short || Math.abs(off.by) < 0.5 ? ''
+    : ` Ranked after taking ${L.speed(Math.abs(off.by), u)} ${off.by > 0 ? 'off' : 'onto'} the forecast: over the last ${off.n} days it ran ${off.by > 0 ? 'above' : 'below'} the record here.`;
+  p.replaceChildren('Wind forecast: ', b, ` at its strongest, ${w.words} for the date. Windier than ${Math.round(w.pct)}% of the ${w.sum.n} days around ${L.dateWords(date)} in 1991–2020 (typical: ${L.speed(w.sum.median, u)} by the same model, which reads lower than an anemometer).${gap}`);
+}
+function loadWind(place, d) {
+  if (d.clim[WIND] || d.windAsked) return Promise.resolve();
+  d.windAsked = true; d.windFailed = false;
+  return getJSON(ARCHIVE, { latitude: place.lat, longitude: place.lon, daily: WIND, timezone: place.tz, start_date: L.climRange().start, end_date: L.climRange().end })
+    .then((s) => { if (s.time.length === d.clim.time.length && s.time[0] === d.clim.time[0]) d.clim[WIND] = s[WIND]; else d.windFailed = true; })
+    .catch(() => { d.windFailed = true; })
+    .finally(() => { d.windAsked = false; });
+}
+
 // The snow record, fetched after the page has drawn and only where snow is possible this
 // week (L.maySnow, or snow in the forecast). A failure leaves the line hidden, nothing else.
 function loadSnow(place, d) {
@@ -221,6 +261,7 @@ function draw() {
   drawChart(drawCard());
   drawRain(theDate());
   drawSnow(theDate());
+  drawWind(theDate());
   drawMonth();
   sync();
 }
@@ -235,7 +276,7 @@ async function choose(place) {
   const asked = place.label;
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
-  $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
+  $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
   try {
     const data = await load(place);
     if (state.at.label !== asked) return; // a later pick won
@@ -246,7 +287,7 @@ async function choose(place) {
     loadSnow(place, data).then(() => { if (state.data === data) drawSnow(theDate()); });
   } catch (e) {
     if (state.at.label !== asked) return;
-    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('monthCard').hidden = true;
+    state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true;
     $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: `Could not reach Open-Meteo (${e.message}). Try again in a moment.` }));
   }
 }

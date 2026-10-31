@@ -191,6 +191,30 @@ export function snowAmount(cm, unit) {
   return `${cm < 10 ? cm.toFixed(1) : Math.round(cm)} cm`;
 }
 
+// ---- wind ------------------------------------------------------------------------------
+// The day's strongest wind (wind_speed_10m_max, km/h) ranked among the same 450 days.
+// ERA5 reads low against anemometers (median 0.65 of ASOS's fastest 2-minute wind), but it
+// ranks days the way the ground does: over 12 US stations x 2023-24, median Spearman 0.77
+// against GHCN WSF2, 0.87 against the daily mean wind (ftd-wind, 2026-10-31). So the page
+// says how the day ranks and never claims a speed you would measure. The forecast model
+// reads high (+0.9 m/s at the median of those 12 places), so it gets the same offset as the
+// temperatures; without it SFO would have had 51% of its last 60 days in the top fifth.
+export function wind(samples, x) {
+  const sum = summary(samples);
+  if (!sum) return { band: 'none', words: 'no record to compare with' };
+  if (x == null) return { band: 'none', words: 'no wind forecast for this day', sum };
+  const pct = percentile(samples, x), out = { pct, sum };
+  if (x > sum.max) return { ...out, band: 'record-windy', words: `windier than any of the ${sum.n} past days` };
+  if (pct >= 90) return { ...out, band: 'much-windier', words: 'much windier than usual' };
+  if (pct >= 70) return { ...out, band: 'windier', words: 'windier than usual' };
+  if (pct > 30) return { ...out, band: 'usual', words: 'about as windy as usual' };
+  return { ...out, band: 'calmer', words: 'calmer than usual' };
+}
+// A speed in the reader's unit: km/h, or mph where the page shows °F.
+export function speed(kmh, unit) {
+  return unit === 'F' ? `${Math.round(kmh / 1.609344)} mph` : `${Math.round(kmh)} km/h`;
+}
+
 // The forecast model and the archive are different models, and on 2026-10-26 they
 // disagreed by up to 1.6 °C on the same past days (Reykjavík's lows). So the page measures
 // that gap for this town over the days both cover, and takes it off the forecast before

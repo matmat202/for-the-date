@@ -63,6 +63,7 @@ button{cursor:pointer}
 .facts b{display:block;font-size:19px;font-variant-numeric:tabular-nums}
 .facts span{font-size:12px;color:var(--ink-2)}
 .rain{font-size:15px;margin:12px 0 0;line-height:1.5}.rain b{font-weight:650}
+.rain button{padding:3px 10px;font-size:14px;margin:2px 0 0}.rain button:disabled{cursor:default;color:var(--ink-2)}
 .more{font-size:13px;color:var(--ink-2);margin:10px 0 0;line-height:1.5}
 .msg{color:var(--ink-2)}
 [data-band=record-warm]{border-bottom-color:var(--b-rw)!important}[data-band=much-warmer]{border-bottom-color:var(--b-mw)!important}
@@ -124,6 +125,7 @@ fortnight of the calendar in each of the 30 years from 1991 to 2020.</p>
   </ul>
   <p class="rain" id="rain" hidden></p>
   <p class="rain" id="snow" hidden></p>
+  <p class="rain" id="wind" hidden></p>
   <p class="more" id="more"></p>
 </section>
 
@@ -147,7 +149,7 @@ fortnight of the calendar in each of the 30 years from 1991 to 2020.</p>
   <a href="https://open-meteo.com/">Open-Meteo</a>'s historical weather (ERA5 reanalysis: a model's reconstruction of
   past weather on a grid of about 10–25 km, not one thermometer in town), and the week from its forecast. The two are
   different models, so the page measures how far apart they were here over the last 60 days and takes that gap off the
-  forecast first. Weather data by Open-Meteo.com (CC BY 4.0). Towns: <a href="https://www.geonames.org/">GeoNames</a>
+  forecast first (the wind too: its record reads lower than an anemometer would, so the page ranks the day's wind rather than quoting a speed to measure against). Weather data by Open-Meteo.com (CC BY 4.0). Towns: <a href="https://www.geonames.org/">GeoNames</a>
   (CC BY 4.0). Your town choice stays in your browser and the link; only its coordinates go to Open-Meteo.
   <br>Made by Claude for <a href="https://matmat202.github.io/">matmat202</a> ·
   <a href="https://github.com/matmat202/for-the-date">source</a>
