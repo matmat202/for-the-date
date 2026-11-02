@@ -56,6 +56,15 @@ if (existsSync(FX + 'facts.json')) {
     eq(`month ${k}: ${f.n} days, ${f.above} above the median, ${f.warm} warm, ${f.cool} cool`, [m.n, m.above, m.warm, m.cool], [f.n, f.above, f.warm, f.cool]);
     ok(`month ${k}: every percentile`, m.days.every((d, i) => Math.abs(d.pct - f.pcts[i]) < 1e-9), JSON.stringify(m.days.map((d) => d.pct).slice(0, 4)));
   }
+  // The last 30 days' rain (ftd-rain-month), against Python on the same archives.
+  {
+    const r = L.monthRain(clim, rc, 'precipitation_sum'), f = facts.month_rain;
+    eq('month rain: first and last day', [L.iso(r.first), L.iso(r.last)], [f.first, f.last]);
+    near('month rain: the total', r.x, f.x);
+    eq(`month rain: ${f.n} years, ${f.less} with less and ${f.more} with more`, [r.n, r.less, r.more], [f.n, f.less, f.more]);
+    near('month rain: the median year', r.median, f.median);
+    eq('month rain: Palo Alto, 22 of 30 drier, is about usual', r.band, 'usual');
+  }
 } else console.log('(fixtures not present: the Python cross-check is skipped)');
 
 // --- the window, by hand -----------------------------------------------------------------
@@ -282,6 +291,47 @@ if (existsSync(FX + 'facts.json')) {
   eq('month: above, warm and cool counted', [m.above, m.warm, m.cool], [m.days.filter((d) => d.x > 10).length, m.days.filter((d) => d.x > 10).length, m.days.filter((d) => d.x != null && d.x < 10).length]);
   eq('month: a shorter record is all of it', L.month(clim, { time: rt.slice(0, 5), v: rv.slice(0, 5) }, 'v').n, 5);
   eq('month: an empty record', L.month(clim, { time: [], v: [] }, 'v').n, 0);
+}
+
+// --- the last 30 days' rain, by hand -------------------------------------------------------
+{
+  // Every past day brings 1 mm, except year Y's days, which bring Y - 1990 (so 1 to 30 mm a
+  // day): the 30 yearly totals are then distinct and ranked by year.
+  const mk = (f) => { const time = [], v = []; for (let k = [1990, 12, 1]; L.iso(k) <= '2021-01-31'; k = L.addDays(k, 1)) { time.push(L.iso(k)); v.push(f(k)); } return { time, v }; };
+  const clim = mk((k) => k[0] - 1990);
+  const rec = (start, vals) => { const time = []; for (let i = 0, k = start; i < vals.length; i++, k = L.addDays(k, 1)) time.push(L.iso(k)); return { time, v: vals }; };
+  const thirty = (x) => Array(30).fill(x);
+  const r15 = L.monthRain(clim, rec([2026, 9, 1], thirty(15.5)), 'v'); // 465 mm: between 1005's 450 and 2006's 480
+  eq('month rain: ranked among the yearly totals', [r15.x, r15.n, r15.less, r15.more, r15.band], [465, 30, 15, 15, 'usual']);
+  eq('month rain: wetter than 24 of 30 is wet, 23 is usual', [L.monthRain(clim, rec([2026, 9, 1], thirty(24.5)), 'v').band, L.monthRain(clim, rec([2026, 9, 1], thirty(23.5)), 'v').band], ['wet', 'usual']);
+  eq('month rain: drier than 24 of 30 is dry, 23 is usual', [L.monthRain(clim, rec([2026, 9, 1], thirty(6.5)), 'v').band, L.monthRain(clim, rec([2026, 9, 1], thirty(7.5)), 'v').band], ['dry', 'usual']);
+  eq('month rain: past every year is the wettest, under every year the driest', [L.monthRain(clim, rec([2026, 9, 1], thirty(31)), 'v').band, L.monthRain(clim, rec([2026, 9, 1], thirty(0.5)), 'v').band], ['record-wet', 'record-dry']);
+  eq('month rain: equal to the top year is not a record', L.monthRain(clim, rec([2026, 9, 1], thirty(30)), 'v').band, 'wet');
+  // Trailing nulls (the archive's lag) move the window back; a null inside is left out of
+  // the past years too, so 29 days are summed on both sides.
+  const vals = [...thirty(15.5), 15.5, 15.5, null, null]; vals[10] = null;
+  const g = L.monthRain(clim, rec([2026, 9, 1], vals), 'v');
+  eq('month rain: ends at the newest day with a value', [L.iso(g.first), L.iso(g.last), g.days, g.had], ['2026-09-03', '2026-10-02', 30, 29]);
+  eq('month rain: a missing day is left out of every year', [g.x, g.less, g.more], [29 * 15.5, 15, 15]);
+  // A past year with a gap on one of the days is dropped, not summed short.
+  const holed = mk((k) => (L.iso(k) === '1995-09-10' ? null : k[0] - 1990));
+  eq('month rain: a past year with a gap is dropped', L.monthRain(holed, rec([2026, 9, 1], thirty(15.5)), 'v').n, 29);
+  // A window across New Year reads into the next calendar year of each past year.
+  const ny = mk((k) => (k[1] === 1 ? 100 : k[0] - 1990));
+  const n = L.monthRain(ny, rec([2026, 12, 17], thirty(1)), 'v');
+  eq('month rain: across New Year, 15 December days and 15 January ones', [n.n, n.median], [30, 15 * 15.5 + 15 * 100]);
+  // A window starting on 29 February starts on the 28th in a year without one.
+  const leap = L.monthRain(clim, rec([2028, 2, 29], thirty(15.5)), 'v');
+  eq('month rain: a 29 February start reads every year', [leap.n, leap.less, leap.more], [30, 15, 15]);
+  // Only 28 February rains: a non-leap year's window must start there and catch it (22 of the
+  // 30 years), so the median is 1 mm; started on 1 March instead it would be 0.
+  const feb = L.monthRain(mk((k) => (k[1] === 2 && k[2] === 28 ? 1 : 0)), rec([2028, 2, 29], thirty(0)), 'v');
+  eq('month rain: a 29 February start is the 28th in other years', [feb.n, feb.median, feb.more], [30, 1, 22]);
+  // Under 2.5 mm where the median is too: dry as usual, not drier than usual.
+  const dryClim = mk((k) => (k[0] < 2010 ? 0 : 0.5));
+  // 19 years with none and 11 with 15 mm: 1.5 mm is dry as usual, 6 mm is about usual, 30 the wettest.
+  eq('month rain: a usually dry month', [0, 0.05, 0.2, 1].map((x) => L.monthRain(dryClim, rec([2026, 9, 1], thirty(x)), 'v').band), ['dry-usual', 'dry-usual', 'usual', 'record-wet']);
+  eq('month rain: an empty record, or one of nulls', [L.monthRain(clim, { time: [], v: [] }, 'v').band, L.monthRain(clim, rec([2026, 9, 1], [null, null]), 'v').band], ['none', 'none']);
 }
 
 // --- wind, against Python on Palo Alto's archive, then by hand ----------------------------

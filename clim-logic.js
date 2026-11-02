@@ -133,6 +133,43 @@ export function rain(samples, x) {
   if (100 - pWet < RARE) return { ...out, band: 'dry-rare', words: 'a dry day, which is unusual for the date' };
   return { ...out, band: 'dry', words: 'a dry day, as is usual for the date' };
 }
+// ---- the last 30 days' rain (ftd-rain-month) --------------------------------------------
+// One day's rain is mostly zero, so the month card ranks the TOTAL: the last n days on
+// record, against the same calendar days in each year FROM..TO. A day missing from the
+// recent record is left out of every past year too, so the sums stay like for like, and a
+// past year with a gap on one of those days is dropped rather than summed short. Measured
+// before building (state/scratch/ftd-rain-month/measure.py, 23 towns): 22 had a total that
+// varies year to year; Karachi's late September was under 2.5 mm in 23 of 30 years, which
+// is why "dry, as usual" is its own verdict and not "drier than usual".
+export function monthRain(clim, recent, key, n = MONTH) {
+  let end = recent.time.length - 1;
+  while (end >= 0 && !Number.isFinite(recent[key][end])) end--;
+  if (end < 0) return { band: 'none' };
+  const lo = Math.max(0, end - n + 1), first = parseIso(recent.time[lo]), offs = [];
+  let x = 0;
+  for (let i = lo; i <= end; i++) if (Number.isFinite(recent[key][i])) { offs.push(i - lo); x += recent[key][i]; }
+  const at = new Map(clim.time.map((t, i) => [t, clim[key][i]]));
+  const past = [];
+  for (let y = FROM; y <= TO; y++) {
+    const start = first[1] === 2 && first[2] === 29 && !isLeap(y) ? [y, 2, 28] : [y, first[1], first[2]];
+    let s = 0;
+    for (const k of offs) { const v = at.get(iso(addDays(start, k))); if (!Number.isFinite(v)) { s = null; break; } s += v; }
+    if (s != null) past.push({ year: y, v: s });
+  }
+  const out = { x, first, last: parseIso(recent.time[end]), days: end - lo + 1, had: offs.length, n: past.length };
+  if (!past.length) return { ...out, band: 'none' };
+  const sum = summary(past);
+  out.less = past.filter((p) => p.v < x).length; // years that brought less than this
+  out.more = past.filter((p) => p.v > x).length;
+  out.median = sum.median; out.pct = percentile(past, x);
+  if (x < WET && sum.median < WET) return { ...out, band: 'dry-usual', words: 'dry, as these days usually are here' };
+  if (x > sum.max) return { ...out, band: 'record-wet', words: `the wettest of the ${past.length} years` };
+  if (x < sum.min) return { ...out, band: 'record-dry', words: `the driest of the ${past.length} years` };
+  if (out.pct >= 80) return { ...out, band: 'wet', words: 'wetter than usual' };
+  if (out.pct <= 20) return { ...out, band: 'dry', words: 'drier than usual' };
+  return { ...out, band: 'usual', words: 'about usual' };
+}
+
 // An amount in the reader's unit: millimetres, or inches where the page shows °F.
 export function amount(mm, unit) {
   if (unit === 'F') return `${(mm / 25.4).toFixed(2)} in`;

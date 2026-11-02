@@ -248,7 +248,22 @@ function drawMonth() {
   $('mSum').replaceChildren(b, ` days from ${L.dateWords(first)} to ${L.dateWords(last)} had a ${what} above the typical one for their date: ${m.warm} warmer than usual and ${m.cool} cooler than usual.`);
   strip.setAttribute('aria-label', `${m.days.length} days of ${what}s in ${state.at.label}, ${L.dateWords(first)} to ${L.dateWords(last)}: ${m.warm} warmer than usual, ${m.cool} cooler, ${m.n - m.warm - m.cool} about usual`);
   $('mFrom').textContent = L.dateWords(first); $('mTo').textContent = L.dateWords(last);
+  drawMonthRain();
   $('mMore').textContent = `Each day's ${what} from the historical record, ranked among the 450 ${what}s of its own fortnight in 1991–2020, coloured as the week above. "Usual" is the middle 40%.${L.iso(last) < L.iso(L.addDays(today(), -1)) ? ` The record runs a few days behind, so the strip ends on ${L.dateWords(last)}.` : ''}`;
+}
+
+// The same card's rain: the total over the last 30 days on record, against the same days of
+// each year 1991-2020. The archive's own model on both sides, so no gap to take off.
+function drawMonthRain() {
+  const d = state.data, u = state.unit, p = $('mRain');
+  const r = L.monthRain(d.clim, d.recent, RAIN);
+  p.dataset.band = r.band;
+  if (r.band === 'none') { p.hidden = true; return; }
+  p.hidden = false;
+  const b = document.createElement('b'); b.textContent = L.amount(r.x, u);
+  const gap = r.had < r.days ? ` (${r.days - r.had} of the ${r.days} days have no record and are left out of every year)` : '';
+  const same = r.n - r.less - r.more;
+  p.replaceChildren('Rain: ', b, ` from ${L.dateWords(r.first)} to ${L.dateWords(r.last)}${gap}, ${r.words}. The same days brought less in ${r.less} of the ${r.n} years 1991–2020${same ? `, as much in ${same}` : ''} and more in ${r.more}; the median was ${L.amount(r.median, u)}.`);
 }
 
 function draw() {
