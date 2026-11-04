@@ -256,6 +256,41 @@ if (existsSync(FX + 'facts.json')) {
   eq('wantSnow: 22 of 450 (4.9%) does not', L.wantSnow(fc, make(years(22, 5, 0)), [[2026, 1, 15]]), false);
 }
 
+// --- edges mutwatch found unpinned (2026-11-03): every boundary on its exact value ---------
+{
+  const S = (vs) => vs.map((v, i) => ({ year: 2000 + i, off: 0, v }));
+  const of = (n, k, v) => [...Array(k).fill(v), ...Array(n - k).fill(0)];
+  eq('rain: exactly 2.5 mm is a wet day', L.rain(S(of(10, 0, 0)), 2.5).band, 'wet-rare');
+  eq('rain: 81 of 100 wet, a dry day is rare', L.rain(S(of(100, 81, 3)), 0).band, 'dry-rare');
+  eq('snow: exactly an inch is a snowy day', L.snow(S(of(10, 0, 0)), 2.54).band, 'snowy-rare');
+  eq('snow: 81 of 100 snowy, no snow is rare', L.snow(S(of(100, 81, 3)), 0).band, 'clear-rare');
+  const w = S(Array.from({ length: 100 }, (_, i) => i));
+  eq('wind: the 31st percentile is usual', [L.wind(w, 30.5).pct, L.wind(w, 30.5).band], [31, 'usual']);
+  const none = { time: [], precipitation_sum: [], temperature_2m_min: [] };
+  eq('maySnow: no record is 0', L.maySnow(none, [1, 15]), 0);
+  eq('wantSnow: an inch forecast on the first day asks', L.wantSnow({ time: ['2026-01-15'], snowfall_sum: [2.54] }, none, [[2026, 1, 15]]), true);
+
+  const { start, end } = L.climRange();
+  const time = [];
+  for (let d = L.parseIso(start); L.iso(d) <= end; d = L.addDays(d, 1)) time.push(L.iso(d));
+  const yr = (t) => +t.slice(0, 4) - 1991;
+  // Every date of year y reads y - 1991, so the 450 days around 1 Oct hold 15 of each 0..29:
+  // 8.5 has 135 below it, the 30th percentile exactly.
+  const clim = { time, k: time.map(yr) };
+  const one = (x) => ({ time: ['2026-10-01'], k: [x] });
+  eq('month: the 30th percentile is cool', [L.month(clim, one(8.5), 'k').days[0].pct, L.month(clim, one(8.5), 'k').cool], [30, 1]);
+  eq('month: nothing on record, no days', L.month(clim, { time: ['2026-10-01', '2026-10-02'], k: [null, null] }, 'k').days, []);
+  // 1 Oct rain: 10, 20 .. 240 mm in 1991..2014, nothing recorded after, so 24 past years.
+  const wet = { time, k: time.map((t) => (yr(t) < 24 ? 10 * (yr(t) + 1) : null)) };
+  const mr = (x, c = wet) => L.monthRain(c, one(x), 'k');
+  eq('monthRain: one day on record is a month', [mr(55).n, mr(55).band], [24, 'usual']);
+  near('monthRain: 5 of 24 below is past the 20th percentile', mr(55).pct, 2500 / 120);
+  eq('monthRain: a tie is not less', [mr(50).less, mr(50).more], [4, 19]);
+  eq('monthRain: equal to the driest is not a record', mr(10).band, 'dry');
+  eq('monthRain: 2.5 mm where none ever fell is a record', mr(2.5, { time, k: time.map(() => 0) }).band, 'record-wet');
+  eq('monthRain: none where the median is 2.5 mm is a record', mr(0, { time, k: time.map(() => 2.5) }).band, 'record-dry');
+}
+
 // --- the towns: same as Daylight's, and the picker finds them ------------------------------
 {
   const doc = JSON.parse(readFileSync(here('data/places.json'), 'utf8'));
