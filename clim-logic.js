@@ -267,6 +267,29 @@ export function offset(forecast, archive, key) {
   return n >= MIN_SHARED ? { by: sum / n, n } : { by: 0, n, short: true };
 }
 
+// How far ahead the verdict can be trusted, measured rather than guessed (projects/ftd-trust):
+// for 8 towns over 1 Aug - 30 Oct 2026, each forecast run's high and low N days before the
+// day (Open-Meteo Previous Runs), banded as above after the gap, against the band of what
+// happened (ERA5). [n, held] per lead 0..6; `call` is a warmer/cooler/record verdict, held
+// when the day landed on the same side; `usual` held when it landed "about usual".
+// Same-side is the test because a wrong side is rare (6% at most) and a wrong shade is not.
+export const HOLD = {
+  hi: { call: [[509, 447], [520, 442], [519, 413], [516, 418], [521, 396], [521, 386], [522, 363]],
+    usual: [[219, 161], [208, 150], [209, 127], [212, 140], [207, 115], [207, 108], [206, 93]] },
+  lo: { call: [[480, 411], [503, 391], [501, 337], [499, 339], [500, 334], [505, 330], [497, 312]],
+    usual: [[248, 187], [225, 155], [227, 115], [229, 115], [228, 116], [223, 117], [231, 110]] },
+};
+const SIDE = { 'record-warm': 1, 'much-warmer': 1, warmer: 1, usual: 0, cooler: -1, 'much-cooler': -1, 'record-cold': -1 };
+// The sentence for a day `lead` days ahead (0 = today, which needs none), or null.
+export function trust(lead, band, key = 'hi') {
+  const t = HOLD[key], s = SIDE[band];
+  if (!t || s === undefined || !(lead >= 1) || lead >= t.call.length) return null;
+  const [n, held] = (s ? t.call : t.usual)[lead];
+  const tenths = Math.round((10 * held) / n);
+  const what = s ? (s > 0 ? 'a warm call' : 'a cold call') : 'an “about usual”';
+  return { tenths, words: `This is a forecast ${lead} day${lead === 1 ? '' : 's'} out. In 8 towns this autumn, ${what} made that far ahead held ${tenths} times in 10${s ? '' : ' (the rest turned warm or cold)'}.` };
+}
+
 // The mean of each year's window, and the least-squares slope through them in degrees per
 // decade. Years with no values are left out of both.
 export function trend(samples) {

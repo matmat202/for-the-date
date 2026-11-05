@@ -105,7 +105,9 @@ function drawCard() {
   const gap = f.off.short
     ? `There were too few days on which both models had a value (${f.off.n}) to measure the gap between them here, so the forecast is used as it stands.`
     : `Over the last ${f.off.n} days the forecast model ran ${L.degDiff(f.off.by, u)} against the record here, so the forecast's ${L.deg(f.raw, u)} is read as ${L.deg(f.x, u)}.`;
-  $('more').textContent = `Warmer than ${colder}% of the ${f.sum.n} ${what}s from ${L.dateWords(L.addDays(date, -7))} to ${L.dateWords(L.addDays(date, 7))} in 1991–2020. ${gap}`;
+  const lead = weekOf(d.fc).findIndex((x) => L.iso(x) === L.iso(date));
+  const tr = L.trust(lead, f.v.band, state.low ? 'lo' : 'hi');
+  $('more').textContent = `Warmer than ${colder}% of the ${f.sum.n} ${what}s from ${L.dateWords(L.addDays(date, -7))} to ${L.dateWords(L.addDays(date, 7))} in 1991–2020. ${tr ? `${tr.words} ` : ''}${gap}`;
   return f;
 }
 

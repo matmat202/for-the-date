@@ -403,5 +403,28 @@ if (existsSync(FX + 'palo-alto-wind.json')) {
   eq('mph not km/h / 1.6 rounded wrong', L.speed(100, 'F'), '62 mph');
 }
 
+// --- how far ahead the verdict holds (ftd-trust): the table is the measurement's, leads 0..6 --
+if (existsSync(FX + 'hold.json')) {
+  const h = JSON.parse(readFileSync(FX + 'hold.json', 'utf8'));
+  for (const k of ['hi', 'lo']) for (const t of ['call', 'usual']) eq(`hold ${k} ${t} is measure.py's`, L.HOLD[k][t], h[k][t].slice(0, 7));
+}
+{
+  eq('today needs no hedge', L.trust(0, 'warmer'), null);
+  eq('a day not in the week gets none', L.trust(-1, 'warmer'), null);
+  eq('no hedge past the table', L.trust(7, 'warmer'), null);
+  eq('no band, no hedge', L.trust(3, 'none'), null);
+  eq('hi warm 6 out: 363/522', L.trust(6, 'warmer').tenths, 7);
+  eq('hi record-cold counts as a cold call', L.trust(6, 'record-cold').tenths, 7);
+  eq('hi usual 6 out: 93/206', L.trust(6, 'usual').tenths, 5);
+  eq('hi usual 1 out: 150/208', L.trust(1, 'usual').tenths, 7);
+  eq('lo warm 2 out: 337/501', L.trust(2, 'much-warmer', 'lo').tenths, 7);
+  eq('lo usual 2 out: 115/227', L.trust(2, 'usual', 'lo').tenths, 5);
+  eq('lo usual 6 out: 110/231', L.trust(6, 'usual', 'lo').tenths, 5);
+  eq('hi warm 1 out: 442/520 is 8.5, rounds up', L.trust(1, 'much-warmer').tenths, 9);
+  eq('hedge words, warm, plural', L.trust(6, 'warmer').words, 'This is a forecast 6 days out. In 8 towns this autumn, a warm call made that far ahead held 7 times in 10.');
+  eq('hedge words, usual, singular', L.trust(1, 'usual').words, 'This is a forecast 1 day out. In 8 towns this autumn, an “about usual” made that far ahead held 7 times in 10 (the rest turned warm or cold).');
+  eq('hedge words, cold', L.trust(4, 'cooler', 'lo').words.includes('a cold call'), true);
+}
+
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
