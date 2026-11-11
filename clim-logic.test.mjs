@@ -426,5 +426,15 @@ if (existsSync(FX + 'hold.json')) {
   eq('hedge words, cold', L.trust(4, 'cooler', 'lo').words.includes('a cold call'), true);
 }
 
+// --- today's date in the town's zone: what the page opens on (app.js) --------------------
+{
+  // 2026-11-11 07:30 UTC: still the 10th in California, already the 11th in Kiritimati.
+  const t = Date.UTC(2026, 10, 11, 7, 30);
+  eq('ymdIn: UTC', L.ymdIn(t, 'UTC'), [2026, 11, 11]);
+  eq('ymdIn: behind UTC', L.ymdIn(t, 'America/Los_Angeles'), [2026, 11, 10]);
+  eq('ymdIn: same zone again (cached formatter)', L.ymdIn(t, 'America/Los_Angeles'), [2026, 11, 10]);
+  eq('ymdIn: UTC+14 at year end', L.ymdIn(Date.UTC(2026, 11, 31, 10, 0), 'Pacific/Kiritimati'), [2027, 1, 1]);
+}
+
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
