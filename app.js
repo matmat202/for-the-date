@@ -20,12 +20,27 @@ async function getJSON(base, params) {
   const url = `${base}?${new URLSearchParams(params)}`;
   const keep = params.end_date === L.climRange().end;
   if (keep) { const hit = await kept(url); if (hit) return hit; }
-  const r = await fetch(url);
+  const r = keep ? await fetch(url) : await patient(url);
   if (!r.ok) throw new Error(`${r.status} from ${new URL(base).host}`);
   const j = await r.json();
   if (j.error || !j.daily) throw new Error(j.reason || 'no daily data');
   if (keep) keepIt(url, j.daily);
   return j.daily;
+}
+
+// The short requests (the forecast, the last 60 days) answer in under a second, but on
+// 2026-11-12 the forecast hung 2 of 3 tries past 40 s and a fresh try then answered in 0.8 s;
+// the page sat on "Fetching" for 30 s and then gave up. So a short request that has not
+// answered in WAIT ms is asked again, once. The 30 years are not: one costs 235 of the 600
+// calls a minute, and a slow one is normal (7 s).
+const WAIT = 8000;
+async function patient(url) {
+  try { return await fetch(url, { signal: AbortSignal.timeout(WAIT) }); }
+  catch (e) {
+    if (e.name !== 'TimeoutError' && e.name !== 'TypeError') throw e;
+    try { return await fetch(url, { signal: AbortSignal.timeout(2 * WAIT) }); }
+    catch (e2) { throw new Error(e2.name === 'TimeoutError' ? `no answer from ${new URL(url).host}` : e2.message); }
+  }
 }
 
 // The 1991-2020 record never changes, yet Open-Meteo sends no cache headers, so without
