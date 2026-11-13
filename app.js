@@ -17,11 +17,36 @@ const cache = new Map();
 const key = () => KEYS[state.low ? 'lo' : 'hi'];
 
 async function getJSON(base, params) {
-  const r = await fetch(`${base}?${new URLSearchParams(params)}`);
+  const url = `${base}?${new URLSearchParams(params)}`;
+  const keep = params.end_date === L.climRange().end;
+  if (keep) { const hit = await kept(url); if (hit) return hit; }
+  const r = await fetch(url);
   if (!r.ok) throw new Error(`${r.status} from ${new URL(base).host}`);
   const j = await r.json();
   if (j.error || !j.daily) throw new Error(j.reason || 'no daily data');
+  if (keep) keepIt(url, j.daily);
   return j.daily;
+}
+
+// The 1991-2020 record never changes, yet Open-Meteo sends no cache headers, so without
+// this every visit re-fetched it: measured 2026-11-12, 7.4 s and 235 of the 600 calls a
+// minute Open-Meteo allows one address — a third town inside a minute got a 429. Kept in
+// the browser's Cache Storage by URL, newest PAST_KEPT; any failure here just fetches.
+const PAST_STORE = 'ftd-past-v1', PAST_KEPT = 24;
+async function kept(url) {
+  try {
+    const r = await (await caches.open(PAST_STORE)).match(url);
+    const d = r && (await r.json());
+    return d && Array.isArray(d.time) && d.time.length ? d : null;
+  } catch { return null; }
+}
+async function keepIt(url, daily) {
+  try {
+    const c = await caches.open(PAST_STORE);
+    await c.put(url, new Response(JSON.stringify(daily), { headers: { 'content-type': 'application/json' } }));
+    const ks = await c.keys();
+    for (const k of ks.slice(0, Math.max(0, ks.length - PAST_KEPT))) await c.delete(k);
+  } catch { /* no Cache Storage (private window, old browser): the page still works */ }
 }
 
 // Three requests, all at once: the 30 years, the forecast with its own last 60 days, and
