@@ -66,6 +66,9 @@ async function keepIt(url, daily) {
 
 // Three requests, all at once: the 30 years, the forecast with its own last 60 days, and
 // the archive's version of those 60 days. The last two give the gap between the models.
+// The two short ones answer in about a second; the 30 years take 2-10 s on a first visit,
+// so load() resolves to { quick, full }: quick (no clim yet) draws the week's forecast while
+// full, the same record with the 30 years, is still on its way.
 function load(place) {
   const k = place.label;
   if (cache.has(k)) return cache.get(k);
@@ -73,12 +76,16 @@ function load(place) {
   const today = L.ymdIn(Date.now(), place.tz);
   const utc = L.ymdIn(Date.now(), 'UTC');
   const end = L.addDays(today, -1);
-  const p = Promise.all([
-    getJSON(ARCHIVE, { ...base, start_date: L.climRange().start, end_date: L.climRange().end }),
+  const past = getJSON(ARCHIVE, { ...base, start_date: L.climRange().start, end_date: L.climRange().end });
+  const quick = Promise.all([
     getJSON(FORECAST, { ...base, daily: `${base.daily},${CHANCE},${SNOW},${WIND}`, past_days: PAST, forecast_days: AHEAD }),
     getJSON(ARCHIVE, { ...base, daily: `${base.daily},${WIND}`, start_date: L.iso(L.addDays(today, -PAST)), end_date: L.iso(L.iso(end) > L.iso(utc) ? utc : end) }),
-  ]).then(([clim, fc, recent]) => ({ clim, fc, recent, off: { hi: L.offset(fc, recent, KEYS.hi), lo: L.offset(fc, recent, KEYS.lo), wind: L.offset(fc, recent, WIND) } }));
-  p.catch(() => cache.delete(k));
+  ]).then(([fc, recent]) => ({ clim: null, fc, recent, off: { hi: L.offset(fc, recent, KEYS.hi), lo: L.offset(fc, recent, KEYS.lo), wind: L.offset(fc, recent, WIND) } }));
+  const full = Promise.all([quick, past]).then(([q, clim]) => ({ ...q, clim }));
+  quick.catch(() => {});
+  const p = { quick, full, climIn: false };
+  past.then(() => { p.climIn = true; }, () => {});
+  full.catch(() => cache.delete(k));
   cache.set(k, p);
   return p;
 }
@@ -94,6 +101,7 @@ function dayFacts(d, date) {
   const i = d.fc.time.indexOf(L.iso(date));
   const raw = i < 0 ? null : d.fc[k][i];
   const x = raw == null ? null : raw - off.by;
+  if (!d.clim) return { raw, x, samples: [], sum: null, pct: null, off, v: x == null ? { band: 'none', words: 'no forecast for this day' } : { band: 'pending', words: 'not yet compared with 1991–2020' } };
   const samples = L.sameDates(d.clim, k, [date[1], date[2]]);
   const sum = L.summary(samples);
   const pct = x == null ? null : L.percentile(samples, x);
@@ -130,6 +138,12 @@ function drawCard() {
   const what = state.low ? 'low' : 'high';
   $('head').textContent = `${state.at.label} · ${isToday ? 'today' : L.weekday(date)}, ${L.dateWords(date)}`;
   const big = $('big'); big.replaceChildren();
+  if (f.v.band === 'pending') {
+    const b = document.createElement('b'); b.textContent = L.deg(f.x, u);
+    const w = document.createElement('span'); w.className = 'msg'; w.textContent = 'Fetching 30 years of the same days to compare…';
+    big.append(`${isToday ? 'Today' : `${L.weekday(date)}`}'s ${what}: `, b, '. ', w);
+    $('facts').hidden = true; $('more').textContent = ''; return f;
+  }
   if (f.x == null || !f.sum) { big.textContent = f.v.words; $('facts').hidden = true; $('more').textContent = ''; return f; }
   const b = document.createElement('b'); b.textContent = L.deg(f.x, u);
   const w = document.createElement('span'); w.className = 'w'; w.dataset.band = f.v.band; w.textContent = f.v.words;
@@ -315,6 +329,7 @@ function draw() {
   $('unit').setAttribute('aria-label', `Show °${state.unit === 'C' ? 'F' : 'C'}`);
   if (!state.data) return;
   drawWeek();
+  if (!state.data.clim) { drawCard(); $('chartCard').hidden = true; $('monthCard').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; sync(); return; }
   drawChart(drawCard());
   drawRain(theDate());
   drawSnow(theDate());
@@ -334,13 +349,22 @@ async function choose(place) {
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
   $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
-  try {
-    const data = await load(place);
-    if (state.at.label !== asked) return; // a later pick won
+  const show = (data) => {
     state.data = data;
     const week = weekOf(data.fc).map(L.iso);
     if (state.date && !week.includes(L.iso(state.date))) state.date = null;
     draw();
+  };
+  try {
+    const p = load(place);
+    const q = await p.quick;
+    if (state.at.label !== asked) return; // a later pick won
+    // The forecast first, unless the 30 years are already in (kept in Cache Storage, or a
+    // town picked before): then there is nothing to wait for and no half page to flash.
+    if (!p.climIn) show(q);
+    const data = await p.full;
+    if (state.at.label !== asked) return;
+    show(data);
     loadSnow(place, data).then(() => { if (state.data === data) drawSnow(theDate()); });
   } catch (e) {
     if (state.at.label !== asked) return;
