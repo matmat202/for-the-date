@@ -5,6 +5,11 @@ const $ = (id) => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
 const ARCHIVE = 'https://archive-api.open-meteo.com/v1/archive';
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
+// The same forecast models, archived, on another of Open-Meteo's servers, and asked by date.
+// On 2026-11-15 api.open-meteo.com took connections and never finished the handshake for
+// at least 6 minutes while this host answered in a second, and the page drew nothing at all.
+// Compared that day on 5 towns: 4 identical on all 67 days, Palo Alto 2 days off by <= 0.6.
+const FORECAST_ALT = 'https://historical-forecast-api.open-meteo.com/v1/forecast';
 const PAST = 60, AHEAD = 7;
 const KEYS = { hi: 'temperature_2m_max', lo: 'temperature_2m_min' };
 const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max', SNOW = 'snowfall_sum';
@@ -16,12 +21,12 @@ const cache = new Map();
 
 const key = () => KEYS[state.low ? 'lo' : 'hi'];
 
-async function getJSON(base, params) {
+async function getJSON(base, params, alt) {
   const url = `${base}?${new URLSearchParams(params)}`;
   const keep = params.end_date === L.climRange().end;
   if (keep) { const hit = await kept(url); if (hit) return hit; }
-  const r = keep ? await fetch(url) : await patient(url);
-  if (!r.ok) throw new Error(`${r.status} from ${new URL(base).host}`);
+  const r = keep ? await fetch(url) : await patient(url, alt && `${alt.base}?${new URLSearchParams(alt.params)}`);
+  if (!r.ok) throw new Error(`${r.status} from ${new URL(r.url || base).host}`);
   const j = await r.json();
   if (j.error || !j.daily) throw new Error(j.reason || 'no daily data');
   if (keep) keepIt(url, j.daily);
@@ -32,15 +37,19 @@ async function getJSON(base, params) {
 // 2026-11-12 the forecast hung 2 of 3 tries past 40 s and a fresh try then answered in 0.8 s;
 // the page sat on "Fetching" for 30 s and then gave up. So a short request that has not
 // answered in WAIT ms is asked again, once. The 30 years are not: one costs 235 of the 600
-// calls a minute, and a slow one is normal (7 s).
+// calls a minute, and a slow one is normal (7 s). Where there is a second server (alt), the
+// second try goes there instead, and so does a first answer that is a server error.
 const WAIT = 8000;
-async function patient(url) {
-  try { return await fetch(url, { signal: AbortSignal.timeout(WAIT) }); }
-  catch (e) {
+async function patient(url, alt) {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(WAIT) });
+    if (r.ok || !alt || r.status < 500) return r;
+  } catch (e) {
     if (e.name !== 'TimeoutError' && e.name !== 'TypeError') throw e;
-    try { return await fetch(url, { signal: AbortSignal.timeout(2 * WAIT) }); }
-    catch (e2) { throw new Error(e2.name === 'TimeoutError' ? `no answer from ${new URL(url).host}` : e2.message); }
   }
+  const again = alt || url;
+  try { return await fetch(again, { signal: AbortSignal.timeout(2 * WAIT) }); }
+  catch (e2) { throw new Error(e2.name === 'TimeoutError' ? `no answer from ${new URL(again).host}` : e2.message); }
 }
 
 // The 1991-2020 record never changes, yet Open-Meteo sends no cache headers, so without
@@ -76,9 +85,11 @@ function load(place) {
   const today = L.ymdIn(Date.now(), place.tz);
   const utc = L.ymdIn(Date.now(), 'UTC');
   const end = L.addDays(today, -1);
+  const fcDaily = `${base.daily},${CHANCE},${SNOW},${WIND}`;
   const past = getJSON(ARCHIVE, { ...base, start_date: L.climRange().start, end_date: L.climRange().end });
   const quick = Promise.all([
-    getJSON(FORECAST, { ...base, daily: `${base.daily},${CHANCE},${SNOW},${WIND}`, past_days: PAST, forecast_days: AHEAD }),
+    getJSON(FORECAST, { ...base, daily: fcDaily, past_days: PAST, forecast_days: AHEAD },
+      { base: FORECAST_ALT, params: { ...base, daily: fcDaily, start_date: L.iso(L.addDays(today, -PAST)), end_date: L.iso(L.addDays(today, AHEAD - 1)) } }),
     getJSON(ARCHIVE, { ...base, daily: `${base.daily},${WIND}`, start_date: L.iso(L.addDays(today, -PAST)), end_date: L.iso(L.iso(end) > L.iso(utc) ? utc : end) }),
   ]).then(([fc, recent]) => ({ clim: null, fc, recent, off: { hi: L.offset(fc, recent, KEYS.hi), lo: L.offset(fc, recent, KEYS.lo), wind: L.offset(fc, recent, WIND) } }));
   const full = Promise.all([quick, past]).then(([q, clim]) => ({ ...q, clim }));
@@ -115,7 +126,9 @@ function sync() {
 }
 
 function drawWeek() {
-  const ul = $('week'); ul.replaceChildren();
+  // Redrawn when the 30 years land, under a keyboard user who may be on a day: keep them there.
+  const ul = $('week'), had = ul.contains(document.activeElement) ? document.activeElement.dataset.d : null;
+  ul.replaceChildren();
   const d = state.data, sel = L.iso(theDate());
   weekOf(d.fc).forEach((date, n) => {
     const f = dayFacts(d, date);
@@ -129,6 +142,7 @@ function drawWeek() {
     b.append(day, t, w);
     b.addEventListener('click', () => setDate(date));
     li.append(b); ul.append(li);
+    if (had === b.dataset.d) b.focus();
   });
 }
 
