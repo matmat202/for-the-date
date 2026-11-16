@@ -4,6 +4,16 @@ import * as L from './clim-logic.js';
 const $ = (id) => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
 const ARCHIVE = 'https://archive-api.open-meteo.com/v1/archive';
+// The archive's default ("best match") is two models: ERA5-Land to 2016, then ECMWF IFS at
+// 9 km from 2017. So "1991-2020" was 26 years of one model and 4 of another, and the last 60
+// days, ranked against them, were all the second. Measured 2026-11-16 (state/scratch/ftd-story,
+// story/): Bogota's nights averaged 2.5 C colder in 2017-20 than 2013-16 (0.4 C with one
+// model), Jakarta's days 1.7 C warmer (0.4), and the page called 84% of Bogota's nights since
+// 2021 cooler than usual (27% with one model). Open-Meteo's docs say to pick one model for
+// decades. ERA5-Seamless (ERA5-Land's temperatures, ERA5's rest) is identical to best match
+// through 2016, and rain, snow and wind with it (Palo Alto 2015-16: 730 of 730 days, wind 729), so every
+// number measured here on 1991-2016 stands. It runs about 6 days behind, not 1.
+const ARCHIVE_MODEL = 'era5_seamless';
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 // The same forecast models, archived, on another of Open-Meteo's servers, and asked by date.
 // On 2026-11-15 api.open-meteo.com took connections and never finished the handshake for
@@ -22,6 +32,7 @@ const cache = new Map();
 const key = () => KEYS[state.low ? 'lo' : 'hi'];
 
 async function getJSON(base, params, alt) {
+  if (base === ARCHIVE) params = { ...params, models: ARCHIVE_MODEL };
   const url = `${base}?${new URLSearchParams(params)}`;
   const keep = params.end_date === L.climRange().end;
   if (keep) { const hit = await kept(url); if (hit) return hit; }

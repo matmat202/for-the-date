@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warmer than usual, usually · For the Date, a story</title>
+<meta name="description" content="A story from For the Date: it calls a day warmer than usual when it beats 70% of the same days in 1991–2020, which by design is 3 days in 10. In the world's 30 biggest cities, 2021–2025, it was 40% of days, and cooler than usual 23%; 28 of 30 cities had more warm days than cool. Thermometers at 30 US stations agree (35% against 24%). And in Bogotá the page was wrong: asked without a model, its weather archive changes model in 2017, and it called 84% of Bogotá's nights cooler than usual.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="plot" aria-hidden="true"></div>
+<p id="err" role="alert"></p>
+<main>
+
+<section class="step" data-step="years"><div>
+  <p class="kicker">For the Date · a story</p>
+  <h1>Warmer than usual, usually</h1>
+  <p><a href="../">For the Date</a> calls a day <i>warmer than usual</i> when it beats 70% of
+  the 450 days around its date in 1991–2020, and <i>cooler</i> when it beats 30% or fewer. So
+  in those 30 years each call came, by design, on 3 days in 10: in the <b data-fact="cities"></b>
+  biggest cities, <b data-fact="base_warm"></b> of days were warmer than usual.</p>
+  <p>Since then the same rule, on <b data-fact="days"></b> days in 2021–2025, has called
+  <span class="w"><b data-fact="warm"></b> of days warmer than usual</span> and only
+  <b data-fact="cool"></b> cooler. Nights: <b data-fact="warm_lo"></b> against
+  <b data-fact="cool_lo"></b>.</p>
+  <p class="small">Scroll ↓</p>
+</div></section>
+
+<section class="step" data-step="cities"><div>
+  <p class="kicker">Chapter 1 · City by city</p>
+  <h2>Not one or two places</h2>
+  <p>Each dot is a city: the 30 biggest in the page’s list, no two in one country. Above the dashed line, it had
+  more warm days than cool ones since 2021; the ring is where 1991–2020 sits by design.
+  <b data-fact="cities_more_warm"></b> of the 30 are above it.</p>
+  <p>The far end moved most. A day in the top tenth of its 450, <i>much warmer than
+  usual</i>, came on <b data-fact="much_warm"></b> of days instead of 10%, and a day warmer
+  than all 450 on <b data-fact="record"></b>, more than three times the 1 in 451 that chance gives.</p>
+</div></section>
+
+<section class="step" data-step="stations"><div>
+  <p class="kicker">Chapter 2 · A second record</p>
+  <h2>Not the model</h2>
+  <p>For the Date’s past is a weather model’s reconstruction, not a thermometer. So take
+  thermometers: <b data-fact="stations"></b> US weather stations (NOAA’s daily record),
+  each ranked by the same rule against its own 1991–2020.</p>
+  <p>They tilt the same way, less far: <b data-fact="st_warm"></b> of days warmer than
+  usual since 2021, <b data-fact="st_cool"></b> cooler, nights <b data-fact="st_warm_lo"></b>
+  against <b data-fact="st_cool_lo"></b>. <b data-fact="st_more_warm"></b> of the 30 had
+  more warm days than cool.</p>
+</div></section>
+
+<section class="step" data-step="seam"><div>
+  <p class="kicker">Chapter 3 · Where the page was wrong</p>
+  <h2>Bogotá’s nights fell in 2017</h2>
+  <p>Hunting for this story turned up a fault in the page. Asked without naming a model,
+  its archive answers from one model to 2016 (ERA5-Land) and another from 2017 (ECMWF’s
+  9 km forecast model, IFS). In
+  Bogotá the mean night <span class="w">fell <b data-fact="seam_step"></b> at the join</span>,
+  from <b data-fact="seam_before"></b> to <b data-fact="seam_after"></b>.</p>
+  <p>Ranked against years that were mostly the first model, <b data-fact="old_cool"></b> of
+  Bogotá’s nights since 2021 came out cooler than usual and <b data-fact="old_warm"></b>
+  warmer. Jakarta’s days were warmer than usual <b data-fact="jak_old"></b> of the time,
+  Lima’s cooler <b data-fact="lima_old"></b>. The page now names one model for every year:
+  the step is <b data-fact="pin_step"></b>, and <b data-fact="new_cool"></b> of Bogotá’s
+  nights are cooler than usual.</p>
+</div></section>
+
+<section class="step" data-step="years"><div>
+  <p class="kicker">Epilogue · Reading For the Date</p>
+  <h2>Usual means 1991–2020</h2>
+  <p>When <a href="../">For the Date</a> says warmer than usual, it means warmer than the
+  same days were in 1991–2020, the normal climatologists use. Lately that is the call on
+  about 4 days in 10, not 3, and in nearly every city.</p>
+  <p class="small">Data: the 30 cities from Open-Meteo’s historical weather, model
+  ERA5-Seamless (ERA5-Land temperatures, on a grid of about 11 km), the 30 most populous
+  towns in For the Date’s own list, taking only the first in each country; the stations from NOAA NCEI
+  GHCN-Daily, a date counted only where at least 300 of its 450 past days were recorded.
+  Bands as the page draws them: 70th percentile and up is warmer, 30th and below cooler,
+  ties counted half. Highs unless it says nights. The program is
+  <a href="https://github.com/matmat202/for-the-date/blob/main/story/build_warm_story.py">in the repository</a>.</p>
+</div></section>
+
+</main>
+<script type="module" src="story.js"></script>
+</body>
+</html>
