@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Half again as far · At Sea on This Date, a story</title>
+<meta name="description" content="A story from At Sea on This Date: in 242,755 noon-to-noon runs from surviving logbooks, the median sailing ship made 81 nautical miles a day in 1750–79 and 124 in 1830–55. Not the seas they sailed (faster in 66 of 69 ten-degree squares) and not the wind (6.7 m/s both eras); British ships got faster too, Spanish ships slower. Holland to Batavia went from 205 days to 108.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="plot" aria-hidden="true"></div>
+<p id="err" role="alert"></p>
+<main>
+
+<section class="step" data-step="decades"><div>
+  <p class="kicker">At Sea · a story</p>
+  <h1>Half again as far</h1>
+  <p><a href="../">At Sea on This Date</a> shows where every ship whose log survives was
+  at noon on one day. Put two days in a row together and you get how far it sailed.</p>
+  <p>That gives <b data-fact="runs"></b> days’ runs from <b data-fact="voyages"></b>
+  voyages. In 1750–79 the median ship made <b data-fact="early"></b> a day, about
+  <b data-fact="early_kn"></b>. By 1830–55 it made <b data-fact="late"></b>,
+  <b data-fact="late_kn"></b>: <span class="w"><b data-fact="ratio"></b> farther every day</span>.</p>
+  <p class="small">Scroll ↓</p>
+</div></section>
+
+<section class="step" data-step="cells"><div>
+  <p class="kicker">Chapter 1 · Like with like</p>
+  <h2>Not the seas they sailed</h2>
+  <p>Perhaps the later ships just sailed easier water: the trade winds, not the Channel. So
+  compare the same patch of sea. Cut the ocean into 10-degree squares and keep the
+  <b data-fact="cells"></b> that ships crossed often in both eras. Each dot is one; above the
+  dashed line, the later ships were faster there.</p>
+  <p>They were in <b data-fact="cells_up"></b> of the <b data-fact="cells"></b>, by
+  <b data-fact="cell_ratio"></b> on the earlier ships’ map. Nor did the wind blow harder:
+  the logs’ median wind was <b data-fact="wind"></b> in both eras.</p>
+</div></section>
+
+<section class="step" data-step="fleets"><div>
+  <p class="kicker">Chapter 2 · Fleet by fleet</p>
+  <h2>Not every fleet</h2>
+  <p>Nearly all the later logs are Dutch, so take the fleets one at a time. British ships,
+  whose logs here end in 1830, went from <b data-fact="brit_early"></b> a day in 1750–79 to
+  <b data-fact="brit_late"></b> in 1800–29, and were faster in <b data-fact="brit_up"></b> of
+  <b data-fact="brit_cells"></b> squares.</p>
+  <p>Spanish ships <span class="w">went the other way</span>:
+  <b data-fact="span_early"></b> a day in 1750–74, <b data-fact="span_late"></b> in
+  1790–1815, faster in only <b data-fact="span_up"></b> of <b data-fact="span_cells"></b>
+  squares. And after 1830 the Dutch line goes flat.</p>
+</div></section>
+
+<section class="step" data-step="batavia"><div>
+  <p class="kicker">Chapter 3 · One route</p>
+  <h2>Seven months, then three and a half</h2>
+  <p>The Dutch route to Java puts it in days. <span class="cap" data-fact="old_n"></span>
+  passages from home to Batavia survive whole from before 1810, the red dots,
+  <b data-fact="old_voc"></b> of them East India Company ships. Their median was
+  <b data-fact="old_days"></b>, <b data-fact="old_months"></b>.</p>
+  <p>From 1820 there are <b data-fact="new_n"></b>, with a median of
+  <b data-fact="new_days"></b>, <b data-fact="new_months"></b>. It is not the old ships’
+  long stop at the Cape: count only the days a ship moved, and it is still
+  <b data-fact="old_sail"></b> against <b data-fact="new_sail"></b>.</p>
+</div></section>
+
+<section class="step" data-step="decades"><div>
+  <p class="kicker">Epilogue · Reading At Sea</p>
+  <h2>Every dot on the map is a day’s run</h2>
+  <p>Pick a date on <a href="../">At Sea on This Date</a> and a year in the 1840s, then
+  one in the 1750s. Same oceans, same winds; the later ships went half again as far
+  between one noon and the next.</p>
+  <p class="small">Data: the logbooks At Sea ships, from CLIWOC 2.1, the Climatological
+  Database for the World’s Oceans (García-Herrera et al., <i>Climatic Change</i> 2005). A
+  day’s run is the straight line between two noon positions on consecutive days, shorter
+  than the zigzag a ship sailed; runs under 5 nautical miles (at anchor) and over 350 (a
+  wrong position) are left out. Positions are as logged, by dead reckoning before
+  chronometers were common, so any single run can be wrong. Medians, not means. This says
+  ships got faster, not why. The program is
+  <a href="https://github.com/matmat202/for-the-date/blob/main/at-sea/story/build_story.py">in the repository</a>.</p>
+</div></section>
+
+</main>
+<script type="module" src="story.js"></script>
+</body>
+</html>
