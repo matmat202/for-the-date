@@ -137,10 +137,16 @@ export function recentYears(clim, past, key) {
   const full = (Date.UTC(RECENT[1] + 1, 0, 1) - Date.UTC(RECENT[0], 0, 1)) / DAY;
   return { n, warm, cool, days, full, enough: n >= RECENT_MIN * full };
 }
-export function recentWords(r, low) {
+// When the chart's trend (perDecade, at least TREND_MIN either way) and the five years' shares
+// as shown lean opposite ways, one clause says why both can be true; 73 of the 720 cards above.
+export const TREND_MIN = 0.1;
+export function recentWords(r, low, perDecade = null) {
   if (!r || !r.enough) return null;
   const pc = (k) => Math.round((100 * k) / r.n);
-  return `In ${RECENT[0]}–${RECENT[1]}, ${pc(r.warm)}% of ${low ? 'nights' : 'days'} here were warmer than usual for their date and ${pc(r.cool)}% cooler (in 1991–2020 itself, about 30% and 30%, by design).`;
+  const w = pc(r.warm), c = pc(r.cool);
+  const odd = Math.abs(perDecade) >= TREND_MIN && w !== c && (w > c) !== (perDecade > 0);
+  return `In ${RECENT[0]}–${RECENT[1]}, ${w}% of ${low ? 'nights' : 'days'} here were warmer than usual for their date and ${c}% cooler (in 1991–2020 itself, about 30% and 30%, by design).${odd
+    ? ` That leans the other way from the trend above, and both can hold: the trend is one fortnight's 30 years, these are every date of the five since.` : ''}`;
 }
 
 // ---- rain ------------------------------------------------------------------------------

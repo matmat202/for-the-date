@@ -467,6 +467,15 @@ if (existsSync(FX + 'hold.json')) {
   const g = L.recentYears(clim, past([null, null, ...gap]), 'v');
   eq('recent: 90% of the 1826 days (1643.4) is enough, one fewer is not', [g.n, g.enough, L.recentYears(clim, past([null, null, ...gap.map((x, i) => (i === 182 ? null : x))]), 'v').enough], [1644, true, false]);
   eq('recent: rounded shares in the words', L.recentWords({ n: 3, warm: 2, cool: 1, enough: true }, false), 'In 2021–2025, 67% of days here were warmer than usual for their date and 33% cooler (in 1991–2020 itself, about 30% and 30%, by design).');
+  const base = 'In 2021–2025, 67% of days here were warmer than usual for their date and 33% cooler (in 1991–2020 itself, about 30% and 30%, by design).';
+  const odd = ' That leans the other way from the trend above, and both can hold: the trend is one fortnight\'s 30 years, these are every date of the five since.';
+  const wc = { n: 3, warm: 2, cool: 1, enough: true }, cw = { n: 3, warm: 1, cool: 2, enough: true };
+  eq('recent vs trend: warmer years, cooling trend, says so', L.recentWords(wc, false, -0.3), base + odd);
+  eq('recent vs trend: cooler years, warming trend, says so', L.recentWords(cw, true, 0.6), base.replace('67%', '33%').replace('33% cooler', '67% cooler').replace('days', 'nights') + odd);
+  eq('recent vs trend: agreeing either way says nothing more', [L.recentWords(wc, false, 0.3), L.recentWords(cw, false, -0.3)], [base, base.replace('67%', '33%').replace('33% cooler', '67% cooler')]);
+  eq('recent vs trend: 0.1 a decade is enough, 0.099 is flat', [L.recentWords(wc, false, -0.1), L.recentWords(wc, false, -0.099)], [base + odd, base]);
+  eq('recent vs trend: no trend says nothing more', [L.recentWords(wc, false, null), L.recentWords(wc, false)], [base, base]);
+  eq('recent vs trend: shares equal as shown (300 vs 301 of 1000) lean neither way', L.recentWords({ n: 1000, warm: 300, cool: 301, enough: true }, false, 0.5), 'In 2021–2025, 30% of days here were warmer than usual for their date and 30% cooler (in 1991–2020 itself, about 30% and 30%, by design).');
 }
 
 // --- today's date in the town's zone: what the page opens on (app.js) --------------------

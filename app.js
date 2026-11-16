@@ -285,16 +285,19 @@ function loadRecent(place, d) {
     .then((s) => { d.past5 = s; d.past5Count = {}; })
     .catch(() => { d.past5Asked = false; });
 }
+// The trend the chart last drew, for the 2021-25 line to say when the two disagree.
+let chartTrend = null;
 function drawRecent() {
   const d = state.data, p = $('recent');
   const k = key();
   if (!d || !d.clim || !d.past5) { p.hidden = true; return; }
   if (!(k in d.past5Count)) d.past5Count[k] = L.recentYears(d.clim, d.past5, k);
-  const words = L.recentWords(d.past5Count[k], state.low);
+  const words = L.recentWords(d.past5Count[k], state.low, chartTrend);
   p.hidden = !words; p.textContent = words || '';
 }
 
 function drawChart(f) {
+  chartTrend = null;
   if (!f.sum || f.x == null) { $('chartCard').hidden = true; return; }
   $('chartCard').hidden = false;
   const u = state.unit, cv = (c) => (u === 'F' ? L.toF(c) : c);
@@ -317,6 +320,7 @@ function drawChart(f) {
   const slot = (W - left - right) / (L.TO - L.FROM + 1);
   for (const s of f.samples) el('circle', { class: 'd', cx: (X(s.year) + (s.off / 16) * slot).toFixed(1), cy: Y(s.v).toFixed(1), r: narrow ? 1.8 : 2.4 });
   const t = L.trend(f.samples);
+  chartTrend = t.perDecade;
   el('path', { class: 'mean', d: t.pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.year).toFixed(1)},${Y(p.mean).toFixed(1)}`).join('') });
   el('line', { class: 'now', x1: left, x2: W - right, y1: Y(f.x), y2: Y(f.x) });
   const lab = el('text', { class: 'lab', x: W - right - 2, y: Y(f.x) - 5, 'text-anchor': 'end' });
