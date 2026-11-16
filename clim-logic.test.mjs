@@ -56,6 +56,19 @@ if (existsSync(FX + 'facts.json')) {
     eq(`month ${k}: ${f.n} days, ${f.above} above the median, ${f.warm} warm, ${f.cool} cool`, [m.n, m.above, m.warm, m.cool], [f.n, f.above, f.warm, f.cool]);
     ok(`month ${k}: every percentile`, m.days.every((d, i) => Math.abs(d.pct - f.pcts[i]) < 1e-9), JSON.stringify(m.days.map((d) => d.pct).slice(0, 4)));
   }
+  // 2021-2025 (ftd-recent), against Python on the recorded 2021-25 archive (source tree only).
+  if (existsSync(FX + 'palo-alto-2021-25.json') && facts.recent_max) {
+    const r5 = JSON.parse(readFileSync(FX + 'palo-alto-2021-25.json', 'utf8')).daily;
+    eq('recent: the fixture is the range the page asks for', [r5.time[0], r5.time.at(-1)], [L.recentRange().start, L.recentRange().end]);
+    for (const k of ['max', 'min']) {
+      const r = L.recentYears(clim, r5, `temperature_2m_${k}`), f = facts[`recent_${k}`];
+      eq(`recent ${k}: ${f.n} days, ${f.warm} warm, ${f.cool} cool`, [r.n, r.warm, r.cool, r.enough], [f.n, f.warm, f.cool, true]);
+      const i = r5.time.indexOf('2024-02-29');
+      near(`recent ${k}: 29 Feb 2024 against its 450`, L.percentile(L.sameDates(clim, `temperature_2m_${k}`, [2, 29]), r5[`temperature_2m_${k}`][i]), f.feb29);
+    }
+    eq('recent: the words, highs', L.recentWords(L.recentYears(clim, r5, 'temperature_2m_max'), false), 'In 2021–2025, 31% of days here were warmer than usual for their date and 27% cooler (in 1991–2020 itself, about 30% and 30%, by design).');
+    eq('recent: the words, lows', L.recentWords(L.recentYears(clim, r5, 'temperature_2m_min'), true), 'In 2021–2025, 29% of nights here were warmer than usual for their date and 24% cooler (in 1991–2020 itself, about 30% and 30%, by design).');
+  }
   // The last 30 days' rain (ftd-rain-month), against Python on the same archives.
   {
     const r = L.monthRain(clim, rc, 'precipitation_sum'), f = facts.month_rain;
@@ -424,6 +437,36 @@ if (existsSync(FX + 'hold.json')) {
   eq('hedge words, warm, plural', L.trust(6, 'warmer').words, 'This is a forecast 6 days out. In 8 towns this autumn, a warm call made that far ahead held 7 times in 10.');
   eq('hedge words, usual, singular', L.trust(1, 'usual').words, 'This is a forecast 1 day out. In 8 towns this autumn, an “about usual” made that far ahead held 7 times in 10 (the rest turned warm or cold).');
   eq('hedge words, cold', L.trust(4, 'cooler', 'lo').words.includes('a cold call'), true);
+}
+
+// --- 2021-2025 by hand (ftd-recent) -------------------------------------------------------
+{
+  // A past where every day of year Y reads Y - 1991 (0..29): each date's 450 days are 15 of
+  // each value, so x = 20.5 sits at exactly the 70th percentile and 8.5 at exactly the 30th.
+  const clim = { time: [], v: [] };
+  for (let t = L.parseIso(L.climRange().start); L.iso(t) <= L.climRange().end; t = L.addDays(t, 1)) { clim.time.push(L.iso(t)); clim.v.push(Math.min(29, Math.max(0, t[0] - 1991))); }
+  const past = (vals) => {
+    const p = { time: [], v: [] };
+    let t = [2020, 12, 30];
+    for (const x of vals) { p.time.push(L.iso(t)); p.v.push(x); t = L.addDays(t, 1); }
+    return p;
+  };
+  // Mid-June, away from the year's turn (where a window mixes two years' values); two days of
+  // 2026 and one of 2020 are outside the five years.
+  const days = ['2020-06-14', '2021-06-14', '2021-06-15', '2022-06-15', '2023-06-15', '2024-06-15', '2025-06-15', '2025-06-16', '2026-06-15'];
+  const r = L.recentYears(clim, { time: days, v: [25, 25, 20.5, 8.5, 9, 15, null, 30, -1] }, 'v');
+  eq('recent: days outside 2021-25 left out; 70th and 30th count; a null is a day without a value', [r.days, r.n, r.warm, r.cool], [7, 6, 3, 1]);
+  eq('recent: a week is not enough to speak for five years', [r.enough, L.recentWords(r, false)], [false, null]);
+  const all = [];
+  for (let t = [2021, 1, 1]; t[0] <= 2025; t = L.addDays(t, 1)) all.push(t[1] === 2 && t[2] === 29 ? 31 : 30);
+  const full = L.recentYears(clim, { time: [], v: [] }, 'v');
+  eq('recent: nothing on record says nothing', [full.n, full.enough, L.recentWords(full, false)], [0, false, null]);
+  const five = L.recentYears(clim, past([null, null, ...all]), 'v');
+  eq('recent: five full years, 29 Feb 2024 included', [five.days, five.n, five.warm, five.cool, five.full, five.enough], [1826, 1826, 1826, 0, 1826, true]);
+  const gap = [...all]; for (let i = 0; i < 182; i++) gap[i] = null;
+  const g = L.recentYears(clim, past([null, null, ...gap]), 'v');
+  eq('recent: 90% of the 1826 days (1643.4) is enough, one fewer is not', [g.n, g.enough, L.recentYears(clim, past([null, null, ...gap.map((x, i) => (i === 182 ? null : x))]), 'v').enough], [1644, true, false]);
+  eq('recent: rounded shares in the words', L.recentWords({ n: 3, warm: 2, cool: 1, enough: true }, false), 'In 2021–2025, 67% of days here were warmer than usual for their date and 33% cooler (in 1991–2020 itself, about 30% and 30%, by design).');
 }
 
 // --- today's date in the town's zone: what the page opens on (app.js) --------------------

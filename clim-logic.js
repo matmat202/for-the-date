@@ -34,8 +34,7 @@ export function climRange() {
 // Every value from the same days of the calendar in each year FROM..TO: for year Y, the
 // 15 days centred on (Y, m, d). 29 February becomes the 28th in a year without one.
 // `daily` is Open-Meteo's {time: [...], <key>: [...]}; nulls are skipped, not zeroed.
-export function sameDates(daily, key, [m, d], { from = FROM, to = TO, half = HALF } = {}) {
-  const at = new Map(daily.time.map((t, i) => [t, daily[key][i]]));
+export function sameDates(daily, key, [m, d], { from = FROM, to = TO, half = HALF, at = byDate(daily, key) } = {}) {
   const out = [];
   for (let y = from; y <= to; y++) {
     const centre = m === 2 && d === 29 && !isLeap(y) ? [y, 2, 28] : [y, m, d];
@@ -46,6 +45,9 @@ export function sameDates(daily, key, [m, d], { from = FROM, to = TO, half = HAL
   }
   return out;
 }
+
+// date -> value, for a caller asking sameDates many times over one record.
+export const byDate = (daily, key) => new Map(daily.time.map((t, i) => [t, daily[key][i]]));
 
 // The calendar date a sample from sameDates fell on.
 export function sampleDate(s, [m, d]) {
@@ -106,6 +108,39 @@ export function month(clim, recent, key, n = MONTH) {
     warm: had.filter((d) => d.pct >= 70).length,
     cool: had.filter((d) => d.pct <= 30).length,
   };
+}
+
+// ---- 2021-2025 ---------------------------------------------------------------------------
+// Every day of the RECENT years, each against its own date's 450 days by the verdict's rule:
+// warmer than usual at the 70th percentile or above, cooler at the 30th or below, so in
+// 1991-2020 itself each holds about 30% of days by design (29.8% in the story's 30 cities).
+// The chart's trend line is one fortnight's straight-line fit over 1991-2020; this is every
+// day since. Measured 2026-11-16 (research/recent_measure.mjs): over 30 cities x 12 dates x
+// highs and lows the two point opposite ways on 122 of 720 cards (Santiago 22 of 24). A town
+// with less than RECENT_MIN of the days on record shows nothing rather than a partial count.
+export const RECENT = [2021, 2025], RECENT_MIN = 0.9;
+export const recentRange = () => ({ start: `${RECENT[0]}-01-01`, end: `${RECENT[1]}-12-31` });
+export function recentYears(clim, past, key) {
+  const memo = new Map(), at = byDate(clim, key);
+  let n = 0, warm = 0, cool = 0, days = 0;
+  for (let i = 0; i < past.time.length; i++) {
+    const t = parseIso(past.time[i]), x = past[key][i];
+    if (!t || t[0] < RECENT[0] || t[0] > RECENT[1]) continue;
+    days++;
+    if (!Number.isFinite(x)) continue;
+    const md = `${t[1]}-${t[2]}`;
+    if (!memo.has(md)) memo.set(md, sameDates(clim, key, [t[1], t[2]], { at }));
+    const pct = percentile(memo.get(md), x);
+    if (pct == null) continue;
+    n++; warm += pct >= 70; cool += pct <= 30;
+  }
+  const full = (Date.UTC(RECENT[1] + 1, 0, 1) - Date.UTC(RECENT[0], 0, 1)) / DAY;
+  return { n, warm, cool, days, full, enough: n >= RECENT_MIN * full };
+}
+export function recentWords(r, low) {
+  if (!r || !r.enough) return null;
+  const pc = (k) => Math.round((100 * k) / r.n);
+  return `In ${RECENT[0]}–${RECENT[1]}, ${pc(r.warm)}% of ${low ? 'nights' : 'days'} here were warmer than usual for their date and ${pc(r.cool)}% cooler (in 1991–2020 itself, about 30% and 30%, by design).`;
 }
 
 // ---- rain ------------------------------------------------------------------------------

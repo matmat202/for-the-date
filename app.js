@@ -34,7 +34,7 @@ const key = () => KEYS[state.low ? 'lo' : 'hi'];
 async function getJSON(base, params, alt) {
   if (base === ARCHIVE) params = { ...params, models: ARCHIVE_MODEL };
   const url = `${base}?${new URLSearchParams(params)}`;
-  const keep = params.end_date === L.climRange().end;
+  const keep = [L.climRange().end, L.recentRange().end].includes(params.end_date);
   if (keep) { const hit = await kept(url); if (hit) return hit; }
   const r = keep ? await fetch(url) : await patient(url, alt && `${alt.base}?${new URLSearchParams(alt.params)}`);
   if (!r.ok) throw new Error(`${r.status} from ${new URL(r.url || base).host}`);
@@ -275,6 +275,25 @@ function loadSnow(place, d) {
     .catch(() => { d.snowAsked = false; });
 }
 
+// 2021-2025 against the 30 years: a fixed record like them, so it is kept in Cache Storage too,
+// and fetched after the page has drawn (about 26 of the 600 calls a minute). A failure hides
+// the line and nothing else.
+function loadRecent(place, d) {
+  if (d.past5 || d.past5Asked) return Promise.resolve();
+  d.past5Asked = true;
+  return getJSON(ARCHIVE, { latitude: place.lat, longitude: place.lon, daily: `${KEYS.hi},${KEYS.lo}`, timezone: place.tz, start_date: L.recentRange().start, end_date: L.recentRange().end })
+    .then((s) => { d.past5 = s; d.past5Count = {}; })
+    .catch(() => { d.past5Asked = false; });
+}
+function drawRecent() {
+  const d = state.data, p = $('recent');
+  const k = key();
+  if (!d || !d.clim || !d.past5) { p.hidden = true; return; }
+  if (!(k in d.past5Count)) d.past5Count[k] = L.recentYears(d.clim, d.past5, k);
+  const words = L.recentWords(d.past5Count[k], state.low);
+  p.hidden = !words; p.textContent = words || '';
+}
+
 function drawChart(f) {
   if (!f.sum || f.x == null) { $('chartCard').hidden = true; return; }
   $('chartCard').hidden = false;
@@ -360,6 +379,7 @@ function draw() {
   drawSnow(theDate());
   drawWind(theDate());
   drawMonth();
+  drawRecent();
   sync();
 }
 
@@ -391,6 +411,7 @@ async function choose(place) {
     if (state.at.label !== asked) return;
     show(data);
     loadSnow(place, data).then(() => { if (state.data === data) drawSnow(theDate()); });
+    loadRecent(place, data).then(() => { if (state.data === data) drawRecent(); });
   } catch (e) {
     if (state.at.label !== asked) return;
     state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true;
