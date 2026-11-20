@@ -26,7 +26,7 @@ const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max', SNOW
 const WIND = 'wind_speed_10m_max'; // km/h, Open-Meteo's default
 let PLACES = [], ZONES = [], DEF_UNIT = 'C';
 let MORE = null; // while the page runs on seed.json: what a search with no match says
-const state = { at: null, date: null, low: false, unit: 'C', data: null };
+const state = { at: null, date: null, low: false, unit: 'C', data: null, climFailed: null };
 const cache = new Map();
 
 const key = () => KEYS[state.low ? 'lo' : 'hi'];
@@ -174,8 +174,14 @@ function drawCard() {
   const big = $('big'); big.replaceChildren();
   if (f.v.band === 'pending') {
     const b = document.createElement('b'); b.textContent = L.deg(f.x, u);
-    const w = document.createElement('span'); w.className = 'msg'; w.textContent = 'Fetching 30 years of the same days to compare…';
+    const w = document.createElement('span'); w.className = 'msg';
+    w.textContent = state.climFailed ? `Could not fetch the 30 years to compare it with (${state.climFailed}). ` : 'Fetching 30 years of the same days to compare…';
     big.append(`${isToday ? 'Today' : `${L.weekday(date)}`}'s ${what}: `, b, '. ', w);
+    if (state.climFailed) {
+      const again = document.createElement('button'); again.type = 'button'; again.id = 'climAgain'; again.textContent = 'Try again';
+      again.addEventListener('click', () => choose(state.at));
+      big.append(again);
+    }
     $('facts').hidden = true; $('more').textContent = ''; return f;
   }
   if (f.x == null || !f.sum) { big.textContent = f.v.words; $('facts').hidden = true; $('more').textContent = ''; return f; }
@@ -404,6 +410,7 @@ function setDate(k) {
 async function choose(place) {
   state.at = place; $('at').value = place.label;
   const asked = place.label;
+  state.climFailed = null;
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
   $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
@@ -413,13 +420,14 @@ async function choose(place) {
     if (state.date && !week.includes(L.iso(state.date))) state.date = null;
     draw();
   };
+  let early = null;
   try {
     const p = load(place);
     const q = await p.quick;
     if (state.at.label !== asked) return; // a later pick won
     // The forecast first, unless the 30 years are already in (kept in Cache Storage, or a
     // town picked before): then there is nothing to wait for and no half page to flash.
-    if (!p.climIn) show(q);
+    if (!p.climIn) { show(q); early = q; }
     const data = await p.full;
     if (state.at.label !== asked) return;
     show(data);
@@ -427,6 +435,9 @@ async function choose(place) {
     loadRecent(place, data).then(() => { if (state.data === data) drawRecent(); });
   } catch (e) {
     if (state.at.label !== asked) return;
+    // The week is drawn and only the 30 years failed: keep the week, say so, offer a retry
+    // (load() has dropped the failed record, so a retry asks again).
+    if (early && state.data === early) { state.climFailed = e.message; draw(); return; }
     state.data = null; $('week').replaceChildren(); $('chartCard').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true;
     $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: `Could not reach Open-Meteo (${e.message}). Try again in a moment.` }));
   }
