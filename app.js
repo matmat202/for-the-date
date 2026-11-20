@@ -36,7 +36,7 @@ async function getJSON(base, params, alt) {
   const url = `${base}?${new URLSearchParams(params)}`;
   const keep = [L.climRange().end, L.recentRange().end].includes(params.end_date);
   if (keep) { const hit = await kept(url); if (hit) return hit; }
-  const r = keep ? await fetch(url) : await patient(url, alt && `${alt.base}?${new URLSearchParams(alt.params)}`);
+  const r = keep ? await once(url) : await patient(url, alt && `${alt.base}?${new URLSearchParams(alt.params)}`);
   if (!r.ok) throw new Error(`${r.status} from ${new URL(r.url || base).host}`);
   const j = await r.json();
   if (j.error || !j.daily) throw new Error(j.reason || 'no daily data');
@@ -61,6 +61,15 @@ async function patient(url, alt) {
   const again = alt || url;
   try { return await fetch(again, { signal: AbortSignal.timeout(2 * WAIT) }); }
   catch (e2) { throw new Error(e2.name === 'TimeoutError' ? `no answer from ${new URL(again).host}` : e2.message); }
+}
+
+// The 30 years are asked once (see WAIT), but not forever: on 2026-11-17 api.open-meteo.com
+// held a connection 236 s before failing, and a hung archive would have left "Fetching 30
+// years" up with no end. KEEP_WAIT is about 4x the slowest normal answer (7 s); no retry.
+const KEEP_WAIT = 45000;
+async function once(url) {
+  try { return await fetch(url, { signal: AbortSignal.timeout(KEEP_WAIT) }); }
+  catch (e) { throw new Error(e.name === 'TimeoutError' ? `no answer from ${new URL(url).host}` : e.message); }
 }
 
 // The 1991-2020 record never changes, yet Open-Meteo sends no cache headers, so without
