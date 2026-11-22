@@ -26,7 +26,7 @@ const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max', SNOW
 const WIND = 'wind_speed_10m_max'; // km/h, Open-Meteo's default
 let PLACES = [], ZONES = [], DEF_UNIT = 'C';
 let MORE = null; // while the page runs on seed.json: what a search with no match says
-const state = { at: null, date: null, low: false, unit: 'C', data: null, climFailed: null };
+const state = { at: null, date: null, low: false, unit: 'C', data: null, climFailed: null, shown: null };
 const cache = new Map();
 
 const key = () => KEYS[state.low ? 'lo' : 'hi'];
@@ -182,9 +182,9 @@ function drawCard() {
       again.addEventListener('click', () => choose(state.at));
       big.append(again);
     }
-    $('facts').hidden = true; $('more').textContent = ''; return f;
+    $('facts').hidden = true; $('more').textContent = ''; noShare(); return f;
   }
-  if (f.x == null || !f.sum) { big.textContent = f.v.words; $('facts').hidden = true; $('more').textContent = ''; return f; }
+  if (f.x == null || !f.sum) { big.textContent = f.v.words; $('facts').hidden = true; $('more').textContent = ''; noShare(); return f; }
   const b = document.createElement('b'); b.textContent = L.deg(f.x, u);
   const w = document.createElement('span'); w.className = 'w'; w.dataset.band = f.v.band; w.textContent = f.v.words;
   big.append(`${isToday ? 'Today' : `${L.weekday(date)}`}'s ${what} of `, b, ' is ', w, '.');
@@ -201,6 +201,8 @@ function drawCard() {
     : `Over the last ${f.off.n} days the forecast model ran ${L.degDiff(f.off.by, u)} against the record here, so the forecast's ${L.deg(f.raw, u)} is read as ${L.deg(f.x, u)}.`;
   const lead = weekOf(d.fc).findIndex((x) => L.iso(x) === L.iso(date));
   const tr = L.trust(lead, f.v.band, state.low ? 'lo' : 'hi');
+  state.shown = { at: state.at.label, date, isToday, low: state.low, unit: u, x: f.x, pct: f.pct, v: f.v, n: f.sum.n };
+  $('shareRow').hidden = false; $('share').textContent = sheet() ? 'Share' : 'Copy link'; $('shared').textContent = '';
   $('more').textContent = `Warmer than ${colder}% of the ${f.sum.n} ${what}s from ${L.dateWords(L.addDays(date, -7))} to ${L.dateWords(L.addDays(date, 7))} in 1991–2020. ${tr ? `${tr.words} ` : ''}${gap}`;
   return f;
 }
@@ -402,6 +404,23 @@ function draw() {
   sync();
 }
 
+// Share the shown day. A phone gets its share sheet, a mouse the clipboard (as Which Way
+// Next does); read at click time as well as at render, so the label and the action agree.
+// Where the clipboard refuses, the text itself is shown to copy by hand.
+const sheet = () => matchMedia('(pointer: coarse)').matches && typeof navigator.share === 'function';
+function noShare() { state.shown = null; $('shareRow').hidden = true; }
+async function share() {
+  const s = state.shown;
+  if (!s) return;
+  const text = L.shareText(s), url = new URL(L.shareQuery(s), location.href.split(/[?#]/)[0]).href;
+  if (sheet()) {
+    try { await navigator.share({ title: 'For the Date', text, url }); $('shared').textContent = ''; return; }
+    catch (e) { if (e && e.name === 'AbortError') return; } // dismissed; anything else falls back to copying
+  }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); $('shared').textContent = 'Copied.'; }
+  catch { $('shared').textContent = `${text} ${url}`; }
+}
+
 function setDate(k) {
   state.date = k && L.iso(k) !== L.iso(today()) ? k : null;
   draw();
@@ -413,7 +432,7 @@ async function choose(place) {
   state.climFailed = null;
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
-  $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true; $('more').textContent = '';
+  $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true; $('more').textContent = ''; noShare();
   const show = (data) => {
     state.data = data;
     const week = weekOf(data.fc).map(L.iso);
@@ -486,6 +505,7 @@ function wire() {
   a.box.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== a.box) { a.close(); a.box.value = state.at.label; } }, 150));
   $('hi').addEventListener('click', () => { state.low = false; draw(); });
   $('lo').addEventListener('click', () => { state.low = true; draw(); });
+  $('share').addEventListener('click', share);
   $('unit').addEventListener('click', () => { state.unit = state.unit === 'C' ? 'F' : 'C'; draw(); });
 }
 

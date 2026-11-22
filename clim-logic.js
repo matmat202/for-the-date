@@ -365,7 +365,9 @@ export function weekday([y, m, d]) { return WEEK[new Date(Date.UTC(y, m - 1, d))
 
 // ---- the towns (the same list and rules as Daylight) ----------------------------------
 
-export const P = { NAME: 0, A1: 1, CC: 2, LAT: 3, LON: 4, POP: 5, TZ: 6 };
+// `near` is there only when a bigger town already has this label (two Hayes in England):
+// Daylight's build.py names the nearest town, so every label, and every ?at= link, is one town.
+export const P = { NAME: 0, A1: 1, CC: 2, LAT: 3, LON: 4, POP: 5, TZ: 6, NEAR: 7 };
 
 const LETTERS = { '\u00f8': 'o', '\u00e6': 'ae', '\u0153': 'oe', '\u00df': 'ss', '\u0142': 'l', '\u0111': 'd', '\u00f0': 'd', '\u00fe': 'th', '\u0131': 'i', '\u0127': 'h' };
 export function fold(s) {
@@ -374,7 +376,7 @@ export function fold(s) {
 }
 
 export function placeLabel(p) {
-  const parts = [p[P.NAME]];
+  const parts = [p[P.NEAR] ? `${p[P.NAME]} (near ${p[P.NEAR]})` : p[P.NAME]];
   if (p[P.A1] && p[P.A1] !== p[P.NAME]) parts.push(p[P.A1]);
   parts.push(p[P.CC]);
   return parts.join(', ');
@@ -427,4 +429,24 @@ export function decodeState(search) {
   if (date && !same(addDays(date, 0), date)) date = null;
   const u = q.get('u');
   return { at: clip(q.get('at')), date, low: q.get('lo') === '1', unit: u === 'F' || u === 'C' ? u : null };
+}
+
+// ---- sharing the day ------------------------------------------------------------------
+// The link a share carries names the day and the unit outright, unlike the page's own URL,
+// which drops both when they are the default: the reader's default may not be the sender's,
+// and the text quotes the sender's number. A day already past when the link is opened falls
+// back to that reader's today, as any stale ?d= does.
+export function shareQuery({ at, date, low, unit }) {
+  const q = new URLSearchParams();
+  q.set('at', at); q.set('d', iso(date)); if (low) q.set('lo', '1'); q.set('u', unit);
+  return `?${q}`;
+}
+
+// One sentence about the shown day, in the card's own words, then the ranking behind it
+// (left off for a record, where "than any of the 450" already says it).
+export function shareText({ at, date, isToday, low, unit, x, pct, v, n }) {
+  const what = low ? 'low' : 'high', when = isToday ? `today, ${dateWords(date)}` : `${weekday(date)} ${dateWords(date)}`;
+  const head = `${at}, ${when}: a ${what} of ${deg(x, unit)}, ${v.words} for the date.`;
+  if (v.band === 'record-warm' || v.band === 'record-cold') return head;
+  return `${head} Warmer than ${Math.round(pct)}% of the ${n} ${what}s from ${dateWords(addDays(date, -HALF))} to ${dateWords(addDays(date, HALF))} in ${FROM}–${TO}.`;
 }

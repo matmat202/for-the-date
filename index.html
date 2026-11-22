@@ -65,6 +65,8 @@ button{cursor:pointer}
 .facts span{font-size:12px;color:var(--ink-2)}
 .rain{font-size:15px;margin:12px 0 0;line-height:1.5;max-width:65ch}.rain b{font-weight:650}
 .rain button{padding:3px 10px;font-size:14px;margin:2px 0 0}.rain button:disabled{cursor:default;color:var(--ink-2)}
+.share{margin:10px 0 0;font-size:13px;color:var(--ink-2)}.share button{padding:4px 12px;font-size:14px}
+#shared{display:block;margin:6px 0 0;overflow-wrap:anywhere;user-select:all}#shared:empty{display:none}
 .more{font-size:13px;color:var(--ink-2);margin:10px 0 0;line-height:1.5;max-width:65ch}
 .msg{color:var(--ink-2)}
 [data-band=record-warm]{border-bottom-color:var(--b-rw)!important}[data-band=much-warmer]{border-bottom-color:var(--b-mw)!important}
@@ -128,6 +130,7 @@ fortnight of the calendar in each of the 30 years from 1991 to 2020.</p>
   <p class="rain" id="snow" hidden></p>
   <p class="rain" id="wind" hidden></p>
   <p class="more" id="more"></p>
+  <p class="share" id="shareRow" hidden><button type="button" id="share">Copy link</button> <span id="shared" role="status"></span></p>
 </section>
 
 <section class="card" id="chartCard" hidden>

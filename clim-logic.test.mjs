@@ -312,6 +312,13 @@ if (existsSync(FX + 'facts.json')) {
   eq('"reykjavik" finds Reykjavík', L.placeLabel(L.matchPlaces(doc.places, 'reykjavik')[0]), 'Reykjavík, Capital Region, Iceland');
   eq('"palo alto, cal" narrows by region', L.placeLabel(L.matchPlaces(doc.places, 'palo alto, cal')[0]), 'Palo Alto, California, United States');
   const pa = L.placeByLabel(doc.places, 'palo alto, california, united states');
+  // Two towns, one label (two Hayes in England): each its own line, link and share (Daylight 504cd497).
+  const labels = doc.places.map((p) => L.fold(L.placeLabel(p)));
+  const seen = new Set(), dup = labels.filter((l) => seen.has(l) || !seen.add(l));
+  eq('shipped: no two towns share a label', [dup.length, dup.slice(0, 3)], [0, []]);
+  const small = doc.places.find((p) => p[0] === 'Hayes' && p[L.P.NEAR]);
+  eq('the smaller Hayes is named by its neighbour, and its link opens it', [L.placeLabel(small), L.placeByLabel(doc.places, 'Hayes (near Beckenham), England, United Kingdom') === small], ['Hayes (near Beckenham), England, United Kingdom', true]);
+  eq('the bare label still opens the bigger one, as old links did', L.placeByLabel(doc.places, 'Hayes, England, United Kingdom')[L.P.POP], 93928);
   eq('placeByLabel folds case', pa && L.toPlace(pa, doc.zones).tz, 'America/Los_Angeles');
   eq('biggestIn Europe/London is London', L.placeLabel(L.biggestIn(doc.places, doc.zones, 'Europe/London')), 'London, England, United Kingdom');
   eq('biggestIn the first zone', L.biggestIn(doc.places, doc.zones, doc.zones[0]) && L.biggestIn(doc.places, doc.zones, doc.zones[0])[L.P.TZ], 0);
@@ -486,6 +493,27 @@ if (existsSync(FX + 'hold.json')) {
   eq('ymdIn: behind UTC', L.ymdIn(t, 'America/Los_Angeles'), [2026, 11, 10]);
   eq('ymdIn: same zone again (cached formatter)', L.ymdIn(t, 'America/Los_Angeles'), [2026, 11, 10]);
   eq('ymdIn: UTC+14 at year end', L.ymdIn(Date.UTC(2026, 11, 31, 10, 0), 'Pacific/Kiritimati'), [2027, 1, 1]);
+}
+
+// --- sharing the day (app.js share()) ------------------------------------------------------
+{
+  const at = 'Reykjavík, Capital Region, Iceland';
+  // The link names the day and the unit even when they are today and the sender's default.
+  eq('share link: day and unit always named', L.shareQuery({ at, date: [2026, 11, 22], low: false, unit: 'C' }),
+    '?at=Reykjav%C3%ADk%2C+Capital+Region%2C+Iceland&d=2026-11-22&u=C');
+  eq('share link: lows and °F', L.shareQuery({ at: 'X', date: [2026, 1, 5], low: true, unit: 'F' }), '?at=X&d=2026-01-05&lo=1&u=F');
+  eq('share link: the page reads it back as sent', L.decodeState(L.shareQuery({ at, date: [2026, 12, 1], low: true, unit: 'F' })),
+    { at, date: [2026, 12, 1], low: true, unit: 'F' });
+  const v = (pct, x, sum) => L.verdict(pct, x, sum);
+  const sum = { n: 450, min: -12, max: 10 };
+  eq('share text: today, a high, the ranking', L.shareText({ at, date: [2026, 11, 22], isToday: true, low: false, unit: 'C', x: 7.6, pct: 91.6, v: v(91.6, 7.6, sum), n: 450 }),
+    'Reykjavík, Capital Region, Iceland, today, 22 November: a high of 8°C, much warmer than usual for the date. Warmer than 92% of the 450 highs from 15 November to 29 November in 1991–2020.');
+  eq('share text: another day, a low in °F, a window across the year end', L.shareText({ at: 'X', date: [2026, 12, 28], isToday: false, low: true, unit: 'F', x: -5, pct: 20.2, v: v(20.2, -5, sum), n: 448 }),
+    'X, Mon 28 December: a low of 23°F, cooler than usual for the date. Warmer than 20% of the 448 lows from 21 December to 4 January in 1991–2020.');
+  eq('share text: a record says so and drops the ranking', L.shareText({ at: 'X', date: [2026, 11, 22], isToday: true, low: false, unit: 'C', x: 11, pct: 100, v: v(100, 11, sum), n: 450 }),
+    'X, today, 22 November: a high of 11°C, warmer than any of the 450 past days for the date.');
+  eq('share text: a cold record too', L.shareText({ at: 'X', date: [2026, 11, 22], isToday: true, low: true, unit: 'C', x: -13, pct: 0, v: v(0, -13, sum), n: 450 }),
+    'X, today, 22 November: a low of -13°C, colder than any of the 450 past days for the date.');
 }
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
