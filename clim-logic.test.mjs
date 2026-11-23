@@ -520,5 +520,45 @@ if (existsSync(FX + 'hold.json')) {
     'X, today, 22 November: a low of -13°C, colder than any of the 450 past days for the date.');
 }
 
+// --- the chart's "N° this day" label (app.js drawChart) -----------------------------------
+{
+  // A 400 x 300 phone chart: plot from 10 to 278, the label spanning x 330..392 at the right.
+  const flat = (y) => [{ x: 40, y }, { x: 200, y }, { x: 380, y }, { x: 394, y }];
+  eq('label: above its line when the average is far below', L.labelY(100, flat(200), 330, 392, 10, 278), 95);
+  eq('label: below when the average runs just above the line (Monterrey at 390 px)', L.labelY(100, flat(96), 330, 392, 10, 278), 112);
+  eq('label: above when the average runs just below the line', L.labelY(100, flat(104), 330, 392, 10, 278), 95);
+  // Exactly LAB_GAP of clearance is clear: box top 86, average at 82.
+  eq('label: a gap of exactly LAB_GAP stays above', L.labelY(100, flat(82), 330, 392, 10, 278), 95);
+  eq('label: a gap under LAB_GAP flips below', L.labelY(100, flat(83), 330, 392, 10, 278), 112);
+  // Only the label's span counts: the average crosses the label's height far to the left.
+  eq('label: the average elsewhere in the chart does not move it', L.labelY(100, [{ x: 40, y: 92 }, { x: 300, y: 200 }, { x: 394, y: 200 }], 330, 392, 10, 278), 95);
+  // A segment that dips through the box between two vertices outside the span still counts.
+  eq('label: a segment through the span counts though no vertex falls in it', L.labelY(100, [{ x: 40, y: 200 }, { x: 320, y: 92 }, { x: 394, y: 96 }], 330, 392, 10, 278), 112);
+  // At the plot's top, above would leave it: below, though the average is clear of above.
+  eq('label: below when above would leave the plot', L.labelY(14, flat(200), 330, 392, 10, 278), 26);
+  // At the bottom, below would leave it: above, though the average sits on it.
+  eq('label: above when below would leave the plot', L.labelY(270, flat(266), 330, 392, 10, 278), 265);
+  // Neither side is clear: the clearer one. Average from 98 to 101: above is 1 clear, below 2.
+  eq('label: neither side clear, the clearer wins', L.labelY(100, [{ x: 330, y: 98 }, { x: 394, y: 101 }], 330, 392, 10, 278), 112);
+  eq('label: neither side clear, a tie stays above', L.labelY(100, [{ x: 330, y: 94 }, { x: 394, y: 106 }], 330, 392, 10, 278), 95);
+  eq('label: no average line, above', L.labelY(100, [], 330, 392, 10, 278), 95);
+  // Sliding along the line. A zig-zag through both sides at the right end (Reykjavík at 390 px),
+  // calm from x 200 to 300: the label slides left to the first clear span, in steps of 8.
+  const zig = [{ x: 40, y: 200 }, { x: 200, y: 200 }, { x: 300, y: 200 }, { x: 320, y: 80 }, { x: 340, y: 120 }, { x: 360, y: 80 }, { x: 380, y: 120 }, { x: 394, y: 80 }];
+  eq('label spot: clear at the right end, it stays there', L.labelSpot(100, flat(200), 62, 34, 392, 10, 278), { x: 392, y: 95, crowded: false });
+  eq('label spot: flips below before it slides', L.labelSpot(100, flat(96), 62, 34, 392, 10, 278), { x: 392, y: 112, crowded: false });
+  // Below at the right end beats sliding to a clear "above" further left.
+  eq('label spot: below at the right end before sliding left', L.labelSpot(100, [{ x: 30, y: 200 }, { x: 300, y: 200 }, { x: 320, y: 96 }, { x: 394, y: 96 }], 62, 34, 392, 10, 278), { x: 392, y: 112, crowded: false });
+  // The rise from 300 (y 200) to 320 (y 80) is at y 128 by x 312, still 31 clear of the box
+  // above (86..97); by 320 it crosses. So the first right end 392 - 8k that is clear is 312.
+  const z = L.labelSpot(100, zig, 62, 34, 392, 10, 278);
+  eq('label spot: slides left off a zig-zag', z, { x: 312, y: 95, crowded: false });
+  near('label spot: the slid label is clear', L.labelClear(z.y, zig, z.x - 62, z.x, 10, 278), 31);
+  // The average hugging the line: 3 clear either side, under LAB_GAP everywhere.
+  eq('label spot: nothing clear anywhere, the right end above', L.labelSpot(100, flat(100), 62, 34, 392, 10, 278), { x: 392, y: 95, crowded: true });
+  // Clear only left of x 52, where a 62-wide label would run past the axis at 34.
+  eq('label spot: never past the left edge', L.labelSpot(100, [{ x: 30, y: 200 }, { x: 50, y: 200 }, { x: 60, y: 100 }, { x: 394, y: 100 }], 62, 34, 392, 10, 278), { x: 392, y: 95, crowded: true });
+}
+
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

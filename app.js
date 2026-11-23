@@ -338,13 +338,18 @@ function drawChart(f) {
   for (const s of f.samples) el('circle', { class: 'd', cx: (X(s.year) + (s.off / 16) * slot).toFixed(1), cy: Y(s.v).toFixed(1), r: narrow ? 1.8 : 2.4 });
   const t = L.trend(f.samples);
   chartTrend = t.perDecade;
-  el('path', { class: 'mean', d: t.pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.year).toFixed(1)},${Y(p.mean).toFixed(1)}`).join('') });
+  const mean = t.pts.map((p) => ({ x: X(p.year), y: Y(p.mean) }));
+  el('path', { class: 'mean', d: mean.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('') });
   el('line', { class: 'now', x1: left, x2: W - right, y1: Y(f.x), y2: Y(f.x) });
   const lab = el('text', { class: 'lab', x: W - right - 2, y: Y(f.x) - 5, 'text-anchor': 'end' });
   lab.textContent = `${L.deg(f.x, u)} this ${L.iso(theDate()) === L.iso(today()) ? 'day' : L.weekday(theDate())}`;
   const what = state.low ? 'lows' : 'highs';
   svg.setAttribute('aria-label', `${f.sum.n} past ${what} around ${L.dateWords(theDate())} in ${state.at.label}, 1991 to 2020, with this day's ${L.deg(f.x, u)}`);
   $('chart').replaceChildren(svg);
+  // Measured once in the page (the label's width in the chart's units), then kept off the average line.
+  const wide = lab.getComputedTextLength() || lab.textContent.length * 7;
+  const spot = L.labelSpot(Y(f.x), mean, wide, left + 4, W - right - 2, top, H - bot);
+  lab.setAttribute('x', spot.x.toFixed(1)); lab.setAttribute('y', spot.y.toFixed(1)); lab.dataset.crowded = spot.crowded;
   $('cTitle').textContent = `${state.low ? 'Lows' : 'Highs'} around ${L.dateWords(theDate())}, 1991–2020`;
   $('trend').textContent = t.perDecade == null ? ''
     : `Around this date, the yearly average of these ${what} changed by ${L.degDiff(t.perDecade, u)} a decade over the 30 years (a straight-line fit; one place's fortnight is noisy, so read it as a hint rather than a measurement).`;

@@ -344,6 +344,42 @@ export function trend(samples) {
   return { pts, perDecade: (10 * sxy) / sxx };
 }
 
+// Where the chart's "N° this day" label sits, as a text baseline in the chart's own units.
+// Above its line by default; below when the yearly-average line passes within LAB_GAP of the
+// label's box over the label's width (Monterrey at 390 px: the label sat on the line), or when
+// above would leave the plot. Whichever side is clearer wins when neither is clear.
+// lineY: the line's y; pts: the average line's vertices [{x, y}], in x order; x0..x1: the
+// label's span; top..bottom: the plot. A box runs from 9 above its baseline to 2 below.
+export const LAB_GAP = 4;
+export function labelY(lineY, pts, x0, x1, top, bottom) {
+  const a = labelClear(lineY - 5, pts, x0, x1, top, bottom);
+  return a >= LAB_GAP || a >= labelClear(lineY + 12, pts, x0, x1, top, bottom) ? lineY - 5 : lineY + 12;
+}
+// How far a label with this baseline over x0..x1 stays from the average line (0 = touching or
+// crossing it, -Infinity = outside the plot).
+export function labelClear(base, pts, x0, x1, top, bottom) {
+  const bt = base - 9, bb = base + 2;
+  if (bt < top || bb > bottom) return -Infinity;
+  const ys = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[i + 1];
+    if (p.x >= x0 && p.x <= x1) ys.push(p.y);
+    if (q) for (const x of [x0, x1]) if ((p.x < x && q.x > x)) ys.push(p.y + ((q.y - p.y) * (x - p.x)) / (q.x - p.x));
+  }
+  return ys.length ? Math.max(0, Math.min(...ys) - bb, bt - Math.max(...ys)) : Infinity;
+}
+// Where a label of width w goes along its line, between xLeft and xRight: {x: its right end, y:
+// its baseline}. At the right end where that is clear (labelY), else slid left in steps of 8 to
+// the first clear span, above or below (Reykjavík at 390 px: the average zig-zags through both
+// sides of the label at the right end); where nothing is clear, the right end (the page then
+// relies on the label's halo), marked crowded.
+export function labelSpot(lineY, pts, w, xLeft, xRight, top, bottom) {
+  for (let x = xRight; x - w >= xLeft; x -= 8)
+    for (const y of [lineY - 5, lineY + 12])
+      if (labelClear(y, pts, x - w, x, top, bottom) >= LAB_GAP) return { x, y, crowded: false };
+  return { x: xRight, y: labelY(lineY, pts, xRight - w, xRight, top, bottom), crowded: true };
+}
+
 export const toF = (c) => (c * 9) / 5 + 32;
 // A temperature in the reader's unit, to whole degrees; a difference scales but does not shift.
 export function deg(c, unit) { return `${Math.round(unit === 'F' ? toF(c) : c)}°${unit}`; }
