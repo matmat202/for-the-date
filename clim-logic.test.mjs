@@ -162,6 +162,7 @@ eq('deg C', L.deg(20.4, 'C'), '20°C');
 eq('deg F', L.deg(20, 'F'), '68°F');
 eq('deg F rounds', L.deg(-40, 'F'), '-40°F');
 eq('a difference scales and keeps its sign', [L.degDiff(1.2, 'C'), L.degDiff(-1, 'F'), L.degDiff(0, 'C')], ['+1.2°C', '−1.8°F', '±0.0°C']);
+eq('a difference under one degree is still positive', [L.degDiff(0.5, 'C'), L.degDiff(-0.5, 'C')], ['+0.5°C', '−0.5°C']);
 eq('unit: en-US is F', L.unitFor('en-US'), 'F');
 eq('unit: bare en is F (the US is its likely region)', L.unitFor('en'), 'F');
 eq('unit: en-GB is C', L.unitFor('en-GB'), 'C');
@@ -194,6 +195,8 @@ eq('names are cut at 120', L.decodeState('?at=' + 'y'.repeat(130)).at.length, 12
   eq('no record: none', L.rain([], 3).band, 'none');
   eq('mm under 10 to one place', L.amount(2.54, 'C'), '2.5 mm');
   eq('mm from 10 whole', L.amount(12.4, 'C'), '12 mm');
+  eq('exactly 10 mm is whole, not 10.0', L.amount(10, 'C'), '10 mm');
+  eq('10.5 mm rounds up', L.amount(10.5, 'C'), '11 mm');
   eq('inches where the page is in °F', L.amount(L.WET, 'F'), '0.10 in');
   eq('an inch is 25.4 mm', L.amount(25.4, 'F'), '1.00 in');
   eq('a trace under 2.5 mm is a dry day', L.rain(S([3, 3, 3, 3, 3, 3, 3, 3, 3, 0]), 1.2).band, 'dry-rare');
@@ -242,6 +245,7 @@ if (existsSync(FX + 'facts.json')) {
   eq('snow: no record, none', L.snow([], 3).band, 'none');
   eq('cm under 10 to one place', L.snowAmount(L.SNOWY, 'C'), '2.5 cm');
   eq('cm from 10 whole', L.snowAmount(12.4, 'C'), '12 cm');
+  eq('exactly 10 cm is whole, not 10.0', L.snowAmount(10, 'C'), '10 cm');
   eq('an inch of snow under °F', L.snowAmount(L.SNOWY, 'F'), '1.0 in');
   eq('inches to one place', L.snowAmount(15, 'F'), '5.9 in');
 }
