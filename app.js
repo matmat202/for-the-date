@@ -319,37 +319,52 @@ function drawChart(f) {
   $('chartCard').hidden = false;
   const u = state.unit, cv = (c) => (u === 'F' ? L.toF(c) : c);
   const narrow = $('chart').clientWidth < 560; // a phone: fewer, bigger units, so the labels stay legible
-  const W = narrow ? 400 : 730, H = narrow ? 300 : 260, top = 10, bot = 22, left = 30, right = 6;
+  const W = narrow ? 400 : 730, H = narrow ? 300 : 260, bot = 22, left = 30, right = 6;
   const lo = Math.floor(Math.min(cv(f.sum.min), cv(f.x)) - 1), hi = Math.ceil(Math.max(cv(f.sum.max), cv(f.x)) + 1);
   const X = (y) => left + ((y - L.FROM + 0.5) / (L.TO - L.FROM + 1)) * (W - left - right);
-  const Y = (c) => top + (1 - (cv(c) - lo) / (hi - lo)) * (H - top - bot);
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svg.setAttribute('role', 'img');
-  const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.append(e); return e; };
-  const step = hi - lo > 30 ? 10 : 5;
-  for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) {
-    const y = top + (1 - (t - lo) / (hi - lo)) * (H - top - bot);
-    el('line', { class: 'grid', x1: left, x2: W - right, y1: y, y2: y });
-    el('text', { x: left - 4, y: y + 4, 'text-anchor': 'end' }).textContent = `${t}°`;
-  }
-  for (const y of narrow ? [1991, 2005, 2020] : [1991, 2000, 2010, 2020]) el('text', { x: X(y), y: H - 6, 'text-anchor': 'middle' }).textContent = y;
-  const slot = (W - left - right) / (L.TO - L.FROM + 1);
-  for (const s of f.samples) el('circle', { class: 'd', cx: (X(s.year) + (s.off / 16) * slot).toFixed(1), cy: Y(s.v).toFixed(1), r: narrow ? 1.8 : 2.4 });
   const t = L.trend(f.samples);
   chartTrend = t.perDecade;
-  const mean = t.pts.map((p) => ({ x: X(p.year), y: Y(p.mean) }));
-  el('path', { class: 'mean', d: mean.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('') });
-  el('line', { class: 'now', x1: left, x2: W - right, y1: Y(f.x), y2: Y(f.x) });
-  const lab = el('text', { class: 'lab', x: W - right - 2, y: Y(f.x) - 5, 'text-anchor': 'end' });
-  lab.textContent = `${L.deg(f.x, u)} this ${L.iso(theDate()) === L.iso(today()) ? 'day' : L.weekday(theDate())}`;
   const what = state.low ? 'lows' : 'highs';
-  svg.setAttribute('aria-label', `${f.sum.n} past ${what} around ${L.dateWords(theDate())} in ${state.at.label}, 1991 to 2020, with this day's ${L.deg(f.x, u)}`);
-  $('chart').replaceChildren(svg);
-  // Measured once in the page (the label's width in the chart's units), then kept off the average line.
-  const wide = lab.getComputedTextLength() || lab.textContent.length * 7;
-  const spot = L.labelSpot(Y(f.x), mean, wide, left + 4, W - right - 2, top, H - bot);
-  lab.setAttribute('x', spot.x.toFixed(1)); lab.setAttribute('y', spot.y.toFixed(1)); lab.dataset.crowded = spot.crowded;
+  // Drawn with the plot starting at `top`; drawn again lower when the day's label has nowhere
+  // clear on its line and goes in a band above the plot instead.
+  const paint = (top) => {
+    const Y = (c) => top + (1 - (cv(c) - lo) / (hi - lo)) * (H - top - bot);
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.setAttribute('role', 'img');
+    const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); svg.append(e); return e; };
+    const step = hi - lo > 30 ? 10 : 5;
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      const y = top + (1 - (v - lo) / (hi - lo)) * (H - top - bot);
+      el('line', { class: 'grid', x1: left, x2: W - right, y1: y, y2: y });
+      el('text', { x: left - 4, y: y + 4, 'text-anchor': 'end' }).textContent = `${v}°`;
+    }
+    for (const y of narrow ? [1991, 2005, 2020] : [1991, 2000, 2010, 2020]) el('text', { x: X(y), y: H - 6, 'text-anchor': 'middle' }).textContent = y;
+    const slot = (W - left - right) / (L.TO - L.FROM + 1);
+    for (const s of f.samples) el('circle', { class: 'd', cx: (X(s.year) + (s.off / 16) * slot).toFixed(1), cy: Y(s.v).toFixed(1), r: narrow ? 1.8 : 2.4 });
+    const mean = t.pts.map((p) => ({ x: X(p.year), y: Y(p.mean) }));
+    el('path', { class: 'mean', d: mean.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('') });
+    el('line', { class: 'now', x1: left, x2: W - right, y1: Y(f.x), y2: Y(f.x) });
+    const lab = el('text', { class: 'lab', x: W - right - 2, y: Y(f.x) - 5, 'text-anchor': 'end' });
+    lab.textContent = `${L.deg(f.x, u)} this ${L.iso(theDate()) === L.iso(today()) ? 'day' : L.weekday(theDate())}`;
+    svg.setAttribute('aria-label', `${f.sum.n} past ${what} around ${L.dateWords(theDate())} in ${state.at.label}, 1991 to 2020, with this day's ${L.deg(f.x, u)}`);
+    $('chart').replaceChildren(svg);
+    return { el, Y, mean, lab, top };
+  };
+  let c = paint(10);
+  // Measured in the page (the label's width in the chart's units), then kept off the average line.
+  const wide = c.lab.getComputedTextLength() || c.lab.textContent.length * 7;
+  const spot = L.labelSpot(c.Y(f.x), c.mean, wide, left + 4, W - right - 2, c.top, H - bot);
+  if (spot.crowded) {
+    // The average hugs the day's line all the way across (a day near usual often does): the
+    // label goes above the plot, after a short stroke of the day's line, so nothing crosses it.
+    c = paint(26);
+    c.lab.setAttribute('y', '15');
+    c.el('line', { class: 'now', x1: (W - right - 8 - wide - 16).toFixed(1), x2: (W - right - 8 - wide).toFixed(1), y1: 11, y2: 11 });
+  } else {
+    c.lab.setAttribute('x', spot.x.toFixed(1)); c.lab.setAttribute('y', spot.y.toFixed(1));
+  }
+  c.lab.dataset.crowded = spot.crowded;
   $('cTitle').textContent = `${state.low ? 'Lows' : 'Highs'} around ${L.dateWords(theDate())}, 1991–2020`;
   $('trend').textContent = t.perDecade == null ? ''
     : `Around this date, the yearly average of these ${what} changed by ${L.degDiff(t.perDecade, u)} a decade over the 30 years (a straight-line fit; one place's fortnight is noisy, so read it as a hint rather than a measurement).`;

@@ -9,7 +9,10 @@ const here = (p) => fileURLToPath(new URL(p, import.meta.url));
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra = '') => { if (cond) pass++; else { fail++; console.log(`FAIL ${name} ${extra}`); } };
-const eq = (name, a, b) => ok(name, JSON.stringify(a) === JSON.stringify(b), `got ${JSON.stringify(a)} want ${JSON.stringify(b)}`);
+// JSON.stringify writes NaN and +-Infinity as null, which would let a NaN pass for a deliberate
+// null (it hid a live mutant in daily-ngrams); J() tags non-finite numbers instead.
+const J = (v) => JSON.stringify(v, (_k, x) => (typeof x === 'number' && !Number.isFinite(x) ? `#${x}` : x));
+const eq = (name, a, b) => ok(name, J(a) === J(b), `got ${J(a)} want ${J(b)}`);
 const near = (name, a, b, tol = 1e-9) => ok(name, a != null && Math.abs(a - b) <= tol, `got ${a} want ${b}`);
 
 // --- against Python, on Palo Alto's real archive (fixtures exist only in the source tree) --
@@ -542,6 +545,8 @@ if (existsSync(FX + 'hold.json')) {
   eq('label: neither side clear, the clearer wins', L.labelY(100, [{ x: 330, y: 98 }, { x: 394, y: 101 }], 330, 392, 10, 278), 112);
   eq('label: neither side clear, a tie stays above', L.labelY(100, [{ x: 330, y: 94 }, { x: 394, y: 106 }], 330, 392, 10, 278), 95);
   eq('label: no average line, above', L.labelY(100, [], 330, 392, 10, 278), 95);
+  eq('label clear: outside the plot is -Infinity, not null', L.labelClear(14, [], 330, 392, 10, 278), -Infinity);
+  eq('label clear: no average line is Infinity', L.labelClear(100, [], 330, 392, 10, 278), Infinity);
   // Sliding along the line. A zig-zag through both sides at the right end (Reykjavík at 390 px),
   // calm from x 200 to 300: the label slides left to the first clear span, in steps of 8.
   const zig = [{ x: 40, y: 200 }, { x: 200, y: 200 }, { x: 300, y: 200 }, { x: 320, y: 80 }, { x: 340, y: 120 }, { x: 360, y: 80 }, { x: 380, y: 120 }, { x: 394, y: 80 }];
