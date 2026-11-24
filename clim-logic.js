@@ -90,6 +90,13 @@ export function verdict(pct, x, sum) {
 // days behind, so the strip ends at the newest day it has; a null inside is kept as a blank
 // day rather than skipped, so the cells stay one per calendar day.
 export const MONTH = 30;
+// One strip cell in words, for the line under the strip a tap fills (a 'title' tip never
+// shows on a phone). `what` is 'high' or 'low'.
+export function monthDay(day, unit, what) {
+  if (day.x == null) return `${dateWords(day.date)}: no ${what} on record for this day.`;
+  const of = `${Math.round(day.pct)}% of the ${day.n} past ${what}s around the date`;
+  return `${dateWords(day.date)}: a ${what} of ${deg(day.x, unit)}, ${day.words}${/past days$/.test(day.words) ? '' : ` (warmer than ${of})`}.`;
+}
 export function month(clim, recent, key, n = MONTH) {
   let end = recent.time.length - 1;
   while (end >= 0 && !Number.isFinite(recent[key][end])) end--;
@@ -98,8 +105,8 @@ export function month(clim, recent, key, n = MONTH) {
     const date = parseIso(recent.time[i]), x = recent[key][i];
     if (!Number.isFinite(x)) { days.push({ date, x: null, pct: null, band: 'none' }); continue; }
     const samples = sameDates(clim, key, [date[1], date[2]]);
-    const pct = percentile(samples, x);
-    days.push({ date, x, pct, band: verdict(pct, x, summary(samples)).band });
+    const pct = percentile(samples, x), v = verdict(pct, x, summary(samples));
+    days.push({ date, x, pct, n: samples.length, band: v.band, words: v.words });
   }
   const had = days.filter((d) => d.pct != null);
   return {

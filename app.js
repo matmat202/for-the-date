@@ -26,7 +26,7 @@ const RAIN = 'precipitation_sum', CHANCE = 'precipitation_probability_max', SNOW
 const WIND = 'wind_speed_10m_max'; // km/h, Open-Meteo's default
 let PLACES = [], ZONES = [], DEF_UNIT = 'C';
 let MORE = null; // while the page runs on seed.json: what a search with no match says
-const state = { at: null, date: null, low: false, unit: 'C', data: null, climFailed: null, shown: null };
+const state = { at: null, date: null, low: false, unit: 'C', data: null, climFailed: null, shown: null, mDay: null };
 const cache = new Map();
 
 const key = () => KEYS[state.low ? 'lo' : 'hi'];
@@ -379,11 +379,18 @@ function drawMonth() {
   $('monthCard').hidden = false;
   const first = m.days[0].date, last = m.days.at(-1).date;
   const strip = $('days'); strip.replaceChildren();
+  // A cell is a button, and a tap, a click or a finger dragged along the strip names its day
+  // in the line under it; the pick survives the unit and high/low toggles, not a new town.
+  if (!m.days.some((day) => L.iso(day.date) === state.mDay)) state.mDay = null;
   for (const day of m.days) {
-    const i = document.createElement('i'); i.dataset.band = day.band;
-    i.title = day.x == null ? `${L.dateWords(day.date)}: no record` : `${L.dateWords(day.date)}: ${L.deg(day.x, u)}, warmer than ${Math.round(day.pct)}% of past ${what}s for the date`;
+    const i = document.createElement('button'); i.type = 'button'; i.dataset.band = day.band;
+    const k = L.iso(day.date), line = L.monthDay(day, u, what);
+    i.dataset.day = k; i.title = line; i.setAttribute('aria-label', line); i.setAttribute('aria-pressed', String(k === state.mDay));
     strip.append(i);
   }
+  const pick = m.days.find((day) => L.iso(day.date) === state.mDay);
+  $('mDay').textContent = pick ? L.monthDay(pick, u, what) : `Tap a day for its ${what}.`;
+  $('mDay').classList.toggle('hint', !pick);
   $('mTitle').textContent = `The last ${m.days.length} days, each against its own date`;
   const b = document.createElement('b'); b.textContent = `${m.above} of ${m.n}`;
   $('mSum').replaceChildren(b, ` days from ${L.dateWords(first)} to ${L.dateWords(last)} had a ${what} above the typical one for their date: ${m.warm} warmer than usual and ${m.cool} cooler than usual.`);
@@ -452,7 +459,7 @@ async function choose(place) {
   state.climFailed = null;
   $('head').textContent = place.label;
   $('big').replaceChildren(Object.assign(document.createElement('span'), { className: 'msg', textContent: 'Fetching 30 years of weather…' }));
-  $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true; $('more').textContent = ''; noShare();
+  $('facts').hidden = true; $('rain').hidden = true; $('snow').hidden = true; $('wind').hidden = true; $('monthCard').hidden = true; $('more').textContent = ''; state.mDay = null; noShare();
   const show = (data) => {
     state.data = data;
     const week = weekOf(data.fc).map(L.iso);
@@ -523,6 +530,13 @@ function combo(boxId, listId, onPick) {
 function wire() {
   const a = combo('at', 'atList', (p) => { state.date = null; choose(p); });
   a.box.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== a.box) { a.close(); a.box.value = state.at.label; } }, 150));
+  const pickDay = (e) => {
+    const c = (e.clientX != null && e.type !== 'click' ? document.elementFromPoint(e.clientX, e.clientY) : e.target)?.closest?.('#days button');
+    if (c && c.dataset.day !== state.mDay) { state.mDay = c.dataset.day; drawMonth(); }
+  };
+  $('days').addEventListener('click', pickDay);
+  $('days').addEventListener('pointerdown', pickDay);
+  $('days').addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'touch') pickDay(e); });
   $('hi').addEventListener('click', () => { state.low = false; draw(); });
   $('lo').addEventListener('click', () => { state.low = true; draw(); });
   $('share').addEventListener('click', share);

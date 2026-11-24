@@ -299,6 +299,14 @@ if (existsSync(FX + 'facts.json')) {
   const clim = { time, k: time.map(yr) };
   const one = (x) => ({ time: ['2026-10-01'], k: [x] });
   eq('month: the 30th percentile is cool', [L.month(clim, one(8.5), 'k').days[0].pct, L.month(clim, one(8.5), 'k').cool], [30, 1]);
+  // The tap line under the strip: the day's own value, band and rank, in the shown unit.
+  const md = (x, u, w = 'high') => L.monthDay(L.month(clim, one(x), 'k').days[0], u, w);
+  eq('month day: cooler, ranked of 450', md(8.5, 'C'), '1 October: a high of 9°C, cooler than usual (warmer than 30% of the 450 past highs around the date).');
+  eq('month day: in °F, and the low says low', md(20.2, 'F', 'low'), '1 October: a low of 68°F, warmer than usual (warmer than 70% of the 450 past lows around the date).');
+  eq('month day: a record needs no rank', md(31, 'C'), '1 October: a high of 31°C, warmer than any of the 450 past days.');
+  const short = { time: time.filter((t) => t < '2020-01-01'), k: time.filter((t) => t < '2020-01-01').map(yr) };
+  eq('month day: a shorter record counts its own days', L.monthDay(L.month(short, one(8.5), 'k').days[0], 'C', 'high'), '1 October: a high of 9°C, about usual (warmer than 31% of the 435 past highs around the date).');
+  eq('month day: a blank day says so', L.monthDay({ date: [2026, 10, 3], x: null }, 'C', 'low'), '3 October: no low on record for this day.');
   eq('month: nothing on record, no days', L.month(clim, { time: ['2026-10-01', '2026-10-02'], k: [null, null] }, 'k').days, []);
   // 1 Oct rain: 10, 20 .. 240 mm in 1991..2014, nothing recorded after, so 24 past years.
   const wet = { time, k: time.map((t) => (yr(t) < 24 ? 10 * (yr(t) + 1) : null)) };
